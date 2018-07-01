@@ -1,0 +1,123 @@
+
+;-------------------------------------------------------------------------------
+MAIN:
+	PAGE	#(INITMCU)
+	CALL	INITMCU
+	PAGE	#(KCLR_MSG)
+	CALL	KCLR_MSG
+;---Display INITIALIZATION	
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@52		;INITIALIZATION
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR	
+	PAGE	#(DISP_CHAR)
+	CALL	DISP_CHAR
+
+	;MOV	A,@CTMR500MS
+	;CALL	SET_TIMER
+;---	
+	PAGE	#(STOR_MSG)
+	MOV	A,@CPOWER_ON
+	CALL	STOR_MSG	
+MAIN_LOOP:
+	PAGE	#(LCD_DISP)
+	CALL	LCD_DISP
+	
+	PAGE	#(INT_BIOS)
+	CALL	INT_BIOS
+	
+	PAGE	#(SYS_MONT)
+	CALL	SYS_MONT
+	
+	PAGE	#(KEYSCAN_AFFIRM)
+	CALL	KEYSCAN_AFFIRM
+	
+	LCALL 	GET_MSG
+	JPZ	MAIN_LOOP
+	MOV	B1_MSG,A
+
+	LCALL	SYS_MSG
+	JPC	MAIN_LOOP
+	
+;-------------------------------------------------------------------------------
+GOTO_FUNC:				;DO FUNC
+	LCALL	GET_PRO
+	MTBL
+	JMP GOTO_IDLE			;0 idle
+	JMP GOTO_CID			;1 lookup CID/dial
+	JMP GOTO_DIAL			;2
+	JMP GOTO_MENU			;3 menu
+	JMP GOTO_BOOK			;4 phonebook
+	JMP GOTO_PHONE			;5 phone
+	JMP GOTO_STOR			;6 store M1/M2/M3
+	JMP GOTO_PLAY			;7 play message
+	JMP GOTO_ANSWER			;8 Answer
+	JMP GOTO_REMOTE			;9 Remote
+	JMP GOTO_SET_LCODE		;A reserved
+	JMP GOTO_DATA_MODE		;B reserved
+	JMP GOTO_OGM			;C OGM
+	JMP GOTO_OGM_PLAYBACK		;D reserved
+	JMP GOTO_VOL_ADJ		;E reserved
+	JMP GOTO_EDIT			;F reserved
+	ENDT
+
+;-------------------------------------------------------------------------------
+	CGOTO_CID		EQU	0X01
+	CGOTO_DIAL		EQU	0X02
+	CGOTO_MENU		EQU	0X03
+	CGOTO_BOOK		EQU	0X04
+	CGOTO_PHONE		EQU	0X05
+	CGOTO_STOR		EQU	0X06
+	CGOTO_PLAY		EQU	0X07
+	CGOTO_ANSWER		EQU	0X08
+	CGOTO_REMOTE		EQU	0X09
+	CGOTO_SET_LCODE		EQU	0X0A
+	CGOTO_DATA_MODE		EQU	0X0B
+	CGOTO_OGM		EQU	0X0C
+	CGOTO_OGM_PLAYBACK	EQU	0X0D
+	CGOTO_VOL_ADJ		EQU	0X0E
+	CGOTO_EDIT		EQU	0X0F
+	
+;-------------------------------------------------------------------------------
+GOTO_IDLE:
+	LJMP 	PRO_IDLE
+;---------------------------------------
+GOTO_DIAL:
+GOTO_SET_LCODE:
+GOTO_DATA_MODE:
+
+GOTO_OGM_PLAYBACK:
+GOTO_VOL_ADJ:
+GOTO_EDIT:
+;---------------------------------------
+GOTO_CID:
+	LJMP	CID_FUNC
+;---------------------------------------	
+GOTO_REMOTE:
+	LJMP	RMT_FUNC
+;---------------------------------------	
+GOTO_ANSWER:
+	LJMP	ANS_FUNC
+;---------------------------------------
+GOTO_PLAY:
+	LJMP 	PLAY_FUNC
+;---------------------------------------
+GOTO_STOR:	
+	LJMP 	STOR_FUNC
+;---------------------------------------
+GOTO_PHONE:
+	LJMP 	PHONE_FUNC	
+;---------------------------------------
+GOTO_BOOK:
+	LJMP 	BOOK_FUNC
+;---------------------------------------
+GOTO_MENU:
+	LJMP 	MENU_FUNC
+;---------------------------------------
+GOTO_OGM:
+	LJMP 	OGM_FUNC
+;-------------------------------------------------------------------------------

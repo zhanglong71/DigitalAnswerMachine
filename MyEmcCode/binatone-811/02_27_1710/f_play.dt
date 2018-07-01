@@ -1,0 +1,609 @@
+;-------------------------------------------------------------------------------
+;	play message
+;-------------------------------------------------------------------------------
+;ORG	(8<<10)
+;-------------------------------------------------------------------------------
+PLAY_FUNC:
+	BANK	1
+;-------------------------------------------------------------------------------
+PLAY_FUNC_0:			;0 - normal
+	MOV	A,B1_PRO_VAR
+	AND	A,@0X03
+	MTBL
+	JMP	PLAY_FUNC_0_0	;local-idle to play
+	JMP	PLAY_FUNC_0_1	;VOP before play(x messages)
+	JMP	PLAY_FUNC_0_2	;message playing
+	JMP	PLAY_FUNC_0_3	;end of message/no message
+	ENDT
+
+PLAY_FUNC_END:
+	LJMP	MAIN_LOOP
+;-------------------------------------------------------------------------------
+;	B1_PRO_VAR	bit(0,1) - play status
+;
+;			bit2 - Reserved for pause
+;			bit3 - 1/0 repeat/not
+;			bit4 - 1/0 del/not
+;			bit5 - 1/0 New CID need to display
+;			bit6 - 
+;			bit7 - 
+;In this function
+;	B1_MSG_ID	- VP_ID
+;	B1_MSG_T	- the number of total VP
+;	B1_MSG_N	- the number of new VP
+;	B1_CID_T	- the number of total CID
+;	B1_CID_N	- CID_ID
+;-------------------------------------------------------------------------------
+PLAY_FUNC_0_0:			;
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	
+	MOV	A,@CPLY_MSG
+	SUB	A,B1_MSG
+	JPZ	PLAY_FUNC_0_0_PLAY
+	
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_0_PLAY:
+
+	MOV	B1_PRO_VAR,@1
+	PAGE	#(DAA_SPK)
+	CALL	DAA_SPK
+	DAM_SPK_ENABLE
+;-
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	
+	MOV	A,@(STYLE_CENTER+STYLE_TOBCD)	;!!!
+	CALL	VGANUM2
+	MOV	A,B1_MSG_T
+	CALL	VGANUM2
+	MOV	A,@(CH_END)
+	CALL	VGANUM2
+	CALL	VGADRAWNUM2
+	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@11			;MESSAGES
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+
+	LCALL	VPMSG_CHK
+;---
+	JPB	DAM_FLAG,6,PLAY_FUNC_0_0_PLAY_ALL
+;---No messages	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+
+	PAGE	#(VPQUE)
+	MOV	A,@VOPID_YOUHAVE
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_NO
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_MESSAGES
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+
+	MOV	B1_PRO_VAR,@3
+
+	JMP	PLAY_FUNC_END
+
+;---------------------------------------
+PLAY_FUNC_0_0_PLAY_ALL:
+	
+	MOV	A,@VOPID_YOUHAVE
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP
+	MOV	A,B1_MSG_T
+	PAGE	#(ANNOUNCE_NUM)
+	CALL	ANNOUNCE_NUM
+	MOV	A,@VOPID_MESSAGES
+	LCALL	VOP_STOR_VP
+
+	JPB	DAM_FLAG,7,PLAY_FUNC_0_0_PLAY_NEW	;New message exist ?
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_0_PLAY_NEW:
+
+	MOV	A,B1_MSG_N
+	PAGE	#(ANNOUNCE_NUM)
+	CALL	ANNOUNCE_NUM
+	MOV	A,@VOPID_NEW
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_MESSAGES
+	LCALL	VOP_STOR_VP
+
+	JMP	PLAY_FUNC_END
+;-------------------------------------------------------------------------------
+PLAY_FUNC_0_1:			;Play VOP before message
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	PLAY_FUNC_0_1_VPOVER	;VOP play end
+
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	PLAY_FUNC_0_1_MKEY
+	
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_1_MKEY:
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_STP	;stop
+
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_SPK
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_1_VPOVER:
+	
+	MOV	A,B1_MSG
+	LCALL	STOR_MSG
+
+	CLR	B1_MSG_ID	;from 0
+	MOV	B1_PRO_VAR,@2	;INC	B1_PRO_VAR
+	
+	JMP	PLAY_FUNC_END
+;-------------------------------------------------------------------------------
+PLAY_FUNC_0_2:
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	PLAY_FUNC_0_2_VPOVER	;VOP play end
+
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	PLAY_FUNC_0_2_MKEY
+
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	PLAY_FUNC_0_2_TMR
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_TMR:
+	BC	B1_PRO_VAR,3	;Clean repeat-flag
+	INC	B1_PRO_VAR1
+	
+	JPNB	B1_PRO_VAR,5,PLAY_FUNC_END	;No CID need to display
+	
+	BLOCK	1
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F	
+	SUB	A,@LENGTH2NDL
+	JPC	PLAY_FUNC_END	;<=15 No need to alter CID display
+
+	LCALL	VGABLANKNUM2	
+	REFURBISH_1AND2AND3L
+	JPB	B1_PRO_VAR1,0,PLAY_FUNC_0_2_TMR_1	
+
+	LCALL	DISP_TELNUM
+	JMP	PLAY_FUNC_END	
+PLAY_FUNC_0_2_TMR_1:
+	
+	LCALL	DISP_TAILNUM
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_VPOVER:
+	RTC_DISP_DISABLE
+	BC	B1_PRO_VAR,5	;Clear the CID display flag
+;-the first icon
+	PAGE	#(VGA)
+	MOV	A,@((1<<5)|(1<<2))	;":","/"
+	CALL	VGASTAMP1
+	CALL	VGADRAWSTAMP
+	PAGE	#($)
+;---Check end of message
+
+	MOV	A,B1_MSG_N
+	JBS	DAM_FLAG,7	;New message exist ?
+	MOV	A,B1_MSG_T
+	SUB	A,B1_MSG_ID
+	JPZ	PLAY_FUNC_0_2_VPOVER_VPEND
+	
+PLAY_FUNC_0_2_VPOVER_1:
+	INC	B1_MSG_ID		;next message
+PLAY_FUNC_0_2_IDOK:			;找到下一条要播放的VP的ID号
+	BC	B1_PRO_VAR,4	;Clean del-flag
+
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	PAGE	#($)
+;---Check Memo/Message
+	MOV	A,@0X80
+	JBS	DAM_FLAG,7	;Check new-flag
+	MOV	A,@0
+	OR	A,B1_MSG_ID
+	LCALL	GET_VP1IDX	;Check Memo/Message
+	MOV	A,TEMP0
+	MOV	B1_SEC_REG,A	;Save the status(0/~0 - Memo/Message) 
+	JPZ	PLAY_FUNC_0_2_DISP	;---If it is Memo,no CID need display	
+
+;---It is ICM-message	
+	MOV	A,@CGROUP_MISSCID
+	LCALL	SET_GROUP
+;-	
+	MOV	A,@0X80
+	JBS	DAM_FLAG,7		;Check new-flag
+	MOV	A,@0
+	OR	A,B1_MSG_ID
+	PAGE	#(DSP)
+	CALL	GET_ONLYID
+;???????????????????????????????????????
+;Save the Only-ID
+	MOV	A,B1_MSG_ID
+	AND	A,@0X0F
+	ADD	A,@0xF0
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+;???????????????????????????????????????
+	MOV	A,TEMP0		;!!!Only-id(1..100 Nother to do with New-CID)
+	PAGE	#(GET_TELID)
+	CALL	GET_TELID
+	PAGE	#($)
+	MOV	A,TEMP0
+	JPNZ	PLAY_FUNC_0_2_READCID
+
+	MOV	A,@0X80
+	JBS	DAM_FLAG,7	;Check new-flag
+	MOV	A,@0
+	OR	A,B1_MSG_ID
+	PAGE	#(DSP)
+	CALL	GET_ONLYID
+	MOV	A,TEMP0
+	OR	A,@0X80		;!!!Only-id(0x80|1..0x80|100 Nother to do with Old-CID)
+	PAGE	#(GET_TELID)
+	CALL	GET_TELID
+	PAGE	#($)
+	MOV	A,TEMP0
+	JPZ	PLAY_FUNC_0_2_DISP	;Can't find the CID
+PLAY_FUNC_0_2_READCID:
+	
+	MOV	A,TEMP0
+	MOV	B1_CID_N,A	;the message number of TEL
+;---Read the data
+	MOV	OFFSET_D,@DATA_ZONE_START
+PLAY_FUNC_0_2_READCID_LOOP:
+	MOV	A,B1_CID_N
+	LCALL	DAT_READ
+
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+
+	INC	OFFSET_D	;next address
+
+	MOV	A,TEMP1		;Error code
+	JPZ	PLAY_FUNC_0_2_READCID_LOOP
+	
+	PAGE	#(DAT_READ_STOP)
+	CALL	DAT_READ_STOP
+	
+	BS	B1_PRO_VAR,5	;Set the CID display flag
+;---号码在第二,三行显示
+PLAY_FUNC_0_2_DISPCID:
+	PAGE	#(DISP_TELNUM)
+	CALL	DISP_TELNUM
+	CALL	DISP_TELNAME
+	PAGE	#($)
+;---刷新第一二三行	
+	REFURBISH_1AND2AND3L	
+
+	JMP	PLAY_FUNC_0_2_1stDISP
+PLAY_FUNC_0_2_DISP:
+;---------------------------------------
+	PAGE	#(VGA)
+;---Third line	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@15			;PLAY
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	
+	MOV	A,B1_SEC_REG		;Save the status(0/~0 - Memo/Message) 
+	PAGE	#(SEL_MSGDISP)
+	CALL	SEL_MSGDISP
+	PAGE	#(VGA)
+	CALL	VGASTRING		;MEMO/MESSAGE
+
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+
+PLAY_FUNC_0_2_1stDISP:
+;---First line	
+	MOV	A,B1_MSG_ID
+	PAGE	#(DISP_ID)
+	CALL	DISP_ID
+;---No Second line
+	PAGE	#($)
+PLAY_FUNC_0_2_LOADVP:
+		
+	MOV	A,@VOPID_MESSAGE
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP			;VP"message"
+	MOV	A,B1_MSG_ID			;message_ID	;Announce
+	LCALL	ANNOUNCE_NUM
+
+	JPB	DAM_FLAG,7,PLAY_FUNC_0_2_LOADVPNEW
+
+	MOV	TEMP1,B1_MSG_ID
+	MOV	TEMP0,@ID_PLYA
+	PAGE	#(STOR_VP)
+	CALL	STOR_VP	
+;---Get the tag
+	PAGE	#(GET_MSGMIN)	
+	CALL	GET_MSGMIN
+	MOV	B1_MIN_REG,TEMP0
+	CALL	GET_MSGHOUR
+	MOV	B1_HOUR_REG,TEMP0
+	CALL	GET_MSGDAY
+	MOV	B1_DAY_REG,TEMP0
+	CALL	GET_MSGMON
+	MOV	B1_MON_REG,TEMP0
+	CALL	GET_MSGWEEK
+	MOV	B1_WEEK_REG,TEMP0
+
+	MOV	A,B1_WEEK_REG
+	CALL	VP_TOWEEK
+	MOV	A,B1_HOUR_REG
+	CALL	VP_TOHOUR
+	MOV	A,B1_MIN_REG
+	CALL	VP_TOMIN
+	;PAGE	#($)
+;---
+;-the first date/time	
+	PAGE	#(DISP_DATETIME)
+	CALL	DISP_DATETIME
+	PAGE	#($)
+	
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_LOADVPNEW:
+	
+	MOV	TEMP1,B1_MSG_ID
+	MOV	TEMP0,@ID_PLYN
+	PAGE	#(STOR_VP)
+	CALL	STOR_VP
+;---Get the tag
+	PAGE	#(GET_MSGMINNEW)	
+	CALL	GET_MSGMINNEW
+	MOV	B1_MIN_REG,TEMP0
+	CALL	GET_MSGHOURNEW
+	MOV	B1_HOUR_REG,TEMP0
+	CALL	GET_MSGDAYNEW
+	MOV	B1_DAY_REG,TEMP0
+	CALL	GET_MSGMONNEW
+	MOV	B1_MON_REG,TEMP0
+	CALL	GET_MSGWEEKNEW
+	MOV	B1_WEEK_REG,TEMP0
+
+	MOV	A,B1_WEEK_REG
+	CALL	VP_TOWEEK
+	MOV	A,B1_HOUR_REG
+	CALL	VP_TOHOUR
+	MOV	A,B1_MIN_REG
+	CALL	VP_TOMIN
+	;PAGE	#($)
+;-the first date/time	
+	PAGE	#(DISP_DATETIME)
+	CALL	DISP_DATETIME
+	PAGE	#($)
+	
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY_STP:		;stop
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	;JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_VPOVER_VPEND:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL	;0x6100
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	PAGE	#(TEL_UNLINK)
+	CALL	TEL_UNLINK	;Disable the VP-TEL link(follow the VPMSG_CHK)
+
+	MOV	A,@VOPID_ENDOFMESSAGE
+	LCALL	VOP_STOR_VP
+
+	MOV	B1_PRO_VAR,@3
+	
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY:
+		
+	MOV	A,@CKEY_PLY
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_PLY	;play/pause
+
+	MOV	A,@CKEY_OGM
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_OGM	;Repeat
+	MOV	A,@CKEY_MMO
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_MMO	;Next
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_STP	;stop
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_DEL	;Delete the message
+
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_SPK
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY_PLY:
+
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	MOV	A,TEMP1
+	XOR	A,@(1)		;bit8(No work with BEEP)
+	MOV	TEMP1,A
+	CALL	STOR_COMMAND
+	PAGE	#($)
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY_OGM:		;repeat
+	MOV	A,@CTMR1S
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	LCALL	INIT_DAM_FUNC
+
+	JPB	B1_PRO_VAR,3,PLAY_FUNC_0_2_MKEY_DOLAST
+	BS	B1_PRO_VAR,3	;Set repeat-flag
+
+PLAY_FUNC_0_2_REPEAT:
+	JMP	PLAY_FUNC_0_2_IDOK
+PLAY_FUNC_0_2_MKEY_DOLAST:
+	MOV	A,B1_MSG_ID
+	SUB	A,@1
+	JPC	PLAY_FUNC_0_2_REPEAT
+	
+	DEC	B1_MSG_ID
+	
+	JMP	PLAY_FUNC_0_2_REPEAT
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY_MMO:		;next
+
+	MOV	A,@CVP_END
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#($)
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY_DEL:		;delete
+	
+	JPB	B1_PRO_VAR,4,PLAY_FUNC_0_2_MKEY_DODEL
+
+	BS	B1_PRO_VAR,4	;Set del-flag
+
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@4		;DELETE
+	CALL	VGASTRING
+	MOV	A,@(CH_INTE)	;?
+	CALL	VGACHAR
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+	
+	JMP	PLAY_FUNC_END
+PLAY_FUNC_0_2_MKEY_DODEL:
+	BC	B1_PRO_VAR,4	;Clean del-flag
+
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+;---Do delete	
+	MOV	A,B1_MSG_ID
+	PAGE	#(SET_DELMARK)
+	CALL	SET_DELMARK
+	;PAGE	#($)
+;---VOP
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_MESSAGE
+	CALL	VOP_STOR_VP		;VP"message"
+	MOV	A,@VOPID_DELETED
+	CALL	VOP_STOR_VP		;VP"Deletee"	
+	;PAGE	#($)
+;---Display	
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@47		;DELETE...
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_2_MKEY_SPK:
+	PAGE	#(DSP)
+	CALL	INIT_DAM_FUNC
+	CALL	VPMSG_REALDEL	;0x6100
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+	
+	MOV	A,@CPHONE_ON
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	CALL	CLR_PRO_STACK
+	PAGE	#($)
+	CLR	B1_PRO_VAR
+
+	JMP	PLAY_FUNC_END
+;-------------------------------------------------------------------------------
+PLAY_FUNC_0_3:
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	PLAY_FUNC_0_3_VPOVER	;VOP play end
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	PLAY_FUNC_0_3_MKEY
+
+	JMP	PLAY_FUNC_END
+;---------------------------------------	
+PLAY_FUNC_0_3_VPOVER:
+	DAM_SPK_DISABLE
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	PAGE	#(DAA_OFF)
+	CALL	DAA_OFF
+
+	PAGE	#(CLR_PRO_STACK)	
+	CALL	CLR_PRO_STACK
+	CLR	B1_PRO_VAR
+;---
+	MOV	A,@CMSG_INIT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	PAGE	#($)
+	
+	JMP	PLAY_FUNC_END
+;---------------------------------------
+PLAY_FUNC_0_3_MKEY:
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_3_VPOVER	;stop
+
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	PLAY_FUNC_0_2_MKEY_SPK
+
+	JMP	PLAY_FUNC_END
+;-------------------------------------------------------------------------------
+	

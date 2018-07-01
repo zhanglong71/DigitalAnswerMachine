@@ -1,0 +1,46 @@
+;-------------------------------------------------------------------------------
+SYS_MONT:		;ÏµÍ³¼à¿Ø
+;---------------------------------------	
+SYS_MONT_1:		;¼à¿ØÊÖ±ú
+;---HOOK ON/OFF detect
+	JPB	_P7,4,SYS_MONT_1_1
+
+	JPNB	SYS_FLAG,1,SYS_MONT_1_2	;L ==> L	
+;---H ==> L
+	BC	SYS_FLAG,1
+	
+	MOV	A,@1		;HS icon on
+	LCALL	VGASTAMP1
+
+	REFURBISH_ICON
+	
+	MOV	A,@CHOOK_OFF
+	LCALL	STOR_MSG
+	JMP	SYS_MONT_1_2
+SYS_MONT_1_1:
+
+	JPB	SYS_FLAG,1,SYS_MONT_1_2	;H ==> H
+;---L ==> H	
+	BS	SYS_FLAG,1
+
+	MOV	A,@~1		;HS icon off
+	LCALL	CLRVGASTAMP1
+
+	REFURBISH_ICON
+	
+	MOV	A,@CHOOK_ON
+	LCALL	STOR_MSG
+	;JMP	SYS_MONT_1_2
+SYS_MONT_1_2:
+;---------------------------------------
+SYS_MONT_2:
+;---------------------------------------	
+SYS_MONT_3:	
+	
+SYS_MONT_NED:
+	
+	RET
+
+;-------------------------------------------------------------------------------
+
+

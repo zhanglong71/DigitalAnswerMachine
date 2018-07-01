@@ -1,0 +1,79 @@
+.LIST
+;-------------------------------------------------------------------------------
+;	ANNOUNCE_NUM
+;-------------------------------------------------------------------------------
+ANNOUNCE_NUM:
+	SAH	SYSTMP3
+	
+	CALL	GET_LANGUAGE
+	BS	ACZ,ANNOUNCE_NUM_000
+	SBHK	1
+	BS	ACZ,ANNOUNCE_NUM_FREN
+	
+ANNOUNCE_NUM_000:	;English
+;---------------------------------------
+ANNOUNCE_NUM_FREN:	;French
+	LAC	SYSTMP3
+	BS	SGN,ANNOUNCE_NUM_END	;less than 0
+	SBHK	21
+	BS	SGN,ANNOUNCE_NUM_FREN_2
+	
+	LAC	SYSTMP3
+	CALL	HEX_DGT
+	SAH	SYSTMP3
+	ANDK	0X0F
+	SBHK	0X01
+	BS	ACZ,ANNOUNCE_NUM_FREN_1	;个位为1的单独处理
+;---个位不为1
+	LAC	SYSTMP3
+	SFR	4
+	ADHL	19
+	ORL	0XFF00
+	CALL	STOR_VP
+	
+	LAC	SYSTMP3
+	ANDL	0X0F
+	BS	ACZ,ANNOUNCE_NUM_END
+	ADHK	1
+	ORL	0XFF00
+	CALL	STOR_VP
+	BS	B1,ANNOUNCE_NUM_END
+ANNOUNCE_NUM_FREN_1:	;(21,31,41,51)/(61,71,81,91)
+	LAC	SYSTMP3
+	SFR	4
+	SBHK	6
+	BS	SGN,ANNOUNCE_NUM_FREN_2151
+;---(61,71,81,91)	
+	
+	LAC	SYSTMP3
+	SFR	4
+	ADHL	138
+	ORL	0XFF00
+	CALL	STOR_VP
+	
+	LACL	0XFF00|148	;"1"
+	CALL	STOR_VP
+
+	RET
+ANNOUNCE_NUM_FREN_2151:	;(21,31,41,51)	
+	LAC	SYSTMP3
+	SFR	4
+	ADHL	147
+	ORL	0XFF00
+	CALL	STOR_VP
+	
+	RET
+ANNOUNCE_NUM_FREN_2:	;(1..20)
+
+	LAC	SYSTMP3
+	ORL	0XFF00
+	CALL	STOR_VP
+
+ANNOUNCE_NUM_END:
+
+	RET
+
+;-------------------------------------------------------------------------------
+
+.END
+	

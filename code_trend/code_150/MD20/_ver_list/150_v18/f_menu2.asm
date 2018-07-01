@@ -1,0 +1,755 @@
+.NOLIST
+.INCLUDE MD20U.INC
+.INCLUDE REG_D20.inc
+.INCLUDE CONST.INC
+.INCLUDE EXTERN.INC
+;-------------------------------------------------------------------------------
+.EXTERN	SetFlashStartAddress
+.EXTERN	LoadHostCode
+.EXTERN	GetOneConst	;(INPUT=ACCH(ProgramRamAddress),OUTPUT=ACCH(ReadData))
+.EXTERN	GetMoreConst	;(INPUT=ACCH(ProgramRamStartingAddress)ACCL(ReadWordNumber)AR1(StoreDataRamAddress),OUTPUT=)
+;-------------------------------------------------------------------------------
+.GLOBAL	LOCAL_PROMENU2
+;-------------------------------------------------------------------------------
+.LIST
+.ORG    ADDR_SECOND
+;-------------------------------------------------------------------------------
+LOCAL_PROMENU2:				;MENU设置状态要考虑的消息(PRO_VAR)
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,MAIN_PROX_RINGIN
+	LAC	MSG
+	XORL	CMSG_TMR		;TMR
+	BS	ACZ,LOCAL_PROMENU2_TMR
+	
+	LAC	PRO_VAR
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROMENU2_0	;local-idle to adjust
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_1	;date/time
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_2	;End
+
+	RET
+;---------------------------------------common respond
+MAIN_PRO9_VPSTOP:
+	LACK	0
+	SAH	PRO_VAR1		;计数器清零(按键松开后BEEP结束)	
+	CALL	DAA_OFF
+
+	RET
+;---------------------------------------
+LOCAL_PROMENU2_TMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	SBHK	30
+	BZ	SGN,MAIN_PRO9_TMROVER
+	
+	RET
+MAIN_PRO9_TMROVER:		;Time out
+	BS	B1,LOCAL_PROMENU_STOP
+;-----------------------------------------------------------	
+LOCAL_PROMENU2_0:
+	LAC	MSG
+	XORL	CMENU_TIME		;Set menu time
+	BS	ACZ,LOCAL_PROMENU2_0_MTIME
+
+	
+	RET
+;---------------------------------------
+LOCAL_PROMENU2_0_MTIME:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+;---
+
+    CALL	BLED_ON
+;---
+	LACK	0
+	SAH	PRO_VAR1
+	LACL	1000
+	CALL	SET_TIMER		;打开定时,按键清零,超时退出	
+;---从Flash读出一些参数
+	LACK	CGROUP_DATT
+	CALL	SET_TELGROUP
+	CALL	GET_TELT
+	SAH	MSG_ID
+	
+	LACL	TEL_RAM
+	SAH	ADDR_D		;保存地址(在菜单调节部分不能修改)
+	SAH	ADDR_S		;提取地址(在菜单调节部分不能修改)
+	LACK	0
+	SAH	OFFSET_D	;保存地址
+	LAC	MSG_ID		;条目号
+	CALL	READ_TELNUM	;读当前条目数据
+	CALL	STOPREADDAT
+;---
+	LACL	0X8500
+	CALL	DAM_BIOSFUNC	;Get current time(month)
+	SAH	TMR_MONTH
+	LACL	0X8400
+	CALL	DAM_BIOSFUNC	;Get current time(day)
+	SAH	TMR_DAY
+	LACL	0X8300
+	CALL	DAM_BIOSFUNC	;Get current time(week)
+	SAH	TMR_WEEK
+	LACL	0X8200
+	CALL	DAM_BIOSFUNC	;Get current time(hour)
+	SAH	TMR_HOUR
+	SAH	MSG_N
+	LACL	0X8100
+	CALL	DAM_BIOSFUNC	;Get current time(minute)
+	SAH	TMR_MINUTE
+;---
+	;LACK	0X11
+	LACK	0X01
+	SAH	PRO_VAR
+
+LOCAL_PROMENU2_SENDCOMM_HOUR:
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CCOMMOND_HOUR	;COMMAND = 0X91+hour
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROMENU2_1:		;adjust time/date
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROMENU2_1_0	;reserved
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_1_1	;adjust hour
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_1_2	;adjust minute
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_1_3	;adjust month
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_1_4	;adjust day
+	SBHK	1
+	BS	ACZ,LOCAL_PROMENU2_1_5	;adjust week
+
+	RET
+	
+;-------respond-1-0(date/time)
+LOCAL_PROMENU2_1_0:		;adjust
+	LAC	MSG
+	XORL	CMSG_KEYCS
+	BS	ACZ,LOCAL_PROMENU2_1_0_MENU	;MENU release
+	
+	RET
+;------
+LOCAL_PROMENU2_1_0_MENU:
+    LACK	0X11
+	SAH	PRO_VAR
+    RET
+;-------------------------------------------------------------------------------
+LOCAL_PROMENU2_1_1:				;adjust hour
+;LOCAL_PROMENU2_1_1_0:	
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,MAIN_PRO9_VPSTOP	;VP end
+;LOCAL_PROMENU2_1_1_1:		
+	LAC	MSG
+	XORL	CMSG_KEY5S
+	BS	ACZ,LOCAL_PROMENU2_1_1_REW	;REW
+;LOCAL_PROMENU2_1_1_2:	
+	LAC	MSG
+	XORL	CMSG_KEY9S
+	BS	ACZ,LOCAL_PROMENU2_1_1_FFW	;FFW
+;LOCAL_PROMENU2_1_1_3:	
+	LAC	MSG
+	XORL	CMSG_KEY5P
+	BS	ACZ,LOCAL_PROMENU2_1_1_PREW	;REW
+;LOCAL_PROMENU2_1_1_4:	
+	LAC	MSG
+	XORL	CMSG_KEY9P
+	BS	ACZ,LOCAL_PROMENU2_1_1_PFFW	;FFW
+;LOCAL_PROMENU2_1_1_5:
+	LAC	MSG
+	XORL	CMSG_KEYCS
+	BS	ACZ,LOCAL_PROMENU2_1_1_MENU	;MENU
+;LOCAL_PROMENU2_1_1_6:
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROMENU_STOP	;STOP
+
+	RET
+;-------respond9-1-1(hour)
+;---------------------------------------
+LOCAL_PROMENU2_1_1_REW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+
+LOCAL_PROMENU2_1_1_PREW:
+	LACK	0
+	SAH	SYSTMP1
+	LACK	23
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_SUB
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_HOUR
+
+;---------------------------------------
+LOCAL_PROMENU2_1_1_FFW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_1_PFFW:
+	LACK	0
+	SAH	SYSTMP1
+	LACK	23
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_ADD
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_HOUR
+;---------------------------------------	
+LOCAL_PROMENU2_1_1_MENU:		;先保存修改
+	LAC	MSG_N
+	ORL	0X7200
+	CALL	DAM_BIOSFUNC	;Set hour
+	
+	LACL	0X7000
+	CALL	DAM_BIOSFUNC	;Clear second
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SENDTIME
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+	
+	LACL	0X21
+	SAH	PRO_VAR
+
+	;LACL	0X8100		;Get minute
+	;CALL	DAM_BIOSFUNC
+	LAC	TMR_MINUTE
+	SAH	MSG_N		;CURRENT VALUE
+LOCAL_PROMENU2_SENDCOMM_MINUTE:
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CCOMMOND_MINUTE
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+
+;-----------------------------------------------------------
+LOCAL_PROMENU2_1_2:		;adjust minute
+;MAIN_PRO9_1_2_0:	
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,MAIN_PRO9_VPSTOP	;VP end
+;MAIN_PRO9_1_2_1:		
+	LAC	MSG
+	XORL	CMSG_KEY5S
+	BS	ACZ,LOCAL_PROMENU2_1_2_REW	;REW
+;MAIN_PRO9_1_2_2:	
+	LAC	MSG
+	XORL	CMSG_KEY9S
+	BS	ACZ,LOCAL_PROMENU2_1_2_FFW	;FFW
+;MAIN_PRO9_1_2_3:	
+	LAC	MSG
+	XORL	CMSG_KEY5P
+	BS	ACZ,LOCAL_PROMENU2_1_2_PREW	;REW
+;MAIN_PRO9_1_2_4:	
+	LAC	MSG
+	XORL	CMSG_KEY9P
+	BS	ACZ,LOCAL_PROMENU2_1_2_PFFW	;FFW
+;MAIN_PRO9_1_2_5:
+	LAC	MSG
+	XORL	CMSG_KEYCS
+	BS	ACZ,LOCAL_PROMENU2_1_2_MENU	;MENU
+;MAIN_PRO9_1_2_6:
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROMENU_STOP	;STOP
+
+	RET
+;-------respond9-1-2(minute)
+;---------------------------------------
+LOCAL_PROMENU2_1_2_REW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+
+LOCAL_PROMENU2_1_2_PREW:
+	LACK	0
+	SAH	SYSTMP1
+	LACK	59
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_SUB
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_MINUTE
+;---------------------------------------
+LOCAL_PROMENU2_1_2_FFW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_2_PFFW:
+	LACK	0
+	SAH	SYSTMP1
+	LACK	59
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_ADD
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_MINUTE
+;---------------------------------------
+LOCAL_PROMENU2_1_2_MENU:
+	LAC	MSG_N
+	ORL	0X7100
+	CALL	DAM_BIOSFUNC	;Set minute
+
+	LACL	0X7000
+	CALL	DAM_BIOSFUNC	;Clear second
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SENDTIME
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+	
+	LACK	0X31
+	SAH	PRO_VAR
+
+	;LAC	TMR_MONTH
+	
+	;LACL	0X8500
+	;CALL	DAM_BIOSFUNC	;Get current month
+	LAC	TMR_MONTH
+	SAH	MSG_N		;CURRENT VALUE
+
+LOCAL_PROMENU2_SENDCOMM_MONTH:	
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CCOMMOND_MONTH
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	RET
+;-----------------------------------------------------------	
+LOCAL_PROMENU2_1_3:		;adjust month
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,MAIN_PRO9_VPSTOP	;VP end
+;MAIN_PRO9_1_3_1:		
+	LAC	MSG
+	XORL	CMSG_KEY5S
+	BS	ACZ,LOCAL_PROMENU2_1_3_REW	;REW
+;MAIN_PRO9_1_3_2:	
+	LAC	MSG
+	XORL	CMSG_KEY9S
+	BS	ACZ,LOCAL_PROMENU2_1_3_FFW	;FFW
+;MAIN_PRO9_1_3_3:	
+	LAC	MSG
+	XORL	CMSG_KEY5P
+	BS	ACZ,LOCAL_PROMENU2_1_3_PREW	;REW
+;MAIN_PRO9_1_3_4:	
+	LAC	MSG
+	XORL	CMSG_KEY9P
+	BS	ACZ,LOCAL_PROMENU2_1_3_PFFW	;FFW
+;MAIN_PRO9_1_3_5:
+	LAC	MSG
+	XORL	CMSG_KEYCS
+	BS	ACZ,LOCAL_PROMENU2_1_3_MENU	;MENU
+;MAIN_PRO9_1_3_6:
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROMENU_STOP	;STOP	
+
+	RET
+;-------respond9-1-3(month)
+LOCAL_PROMENU2_1_3_REW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_3_PREW:
+	LACK	1
+	SAH	SYSTMP1
+	LACK	12
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_SUB
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_MONTH
+;---------------------------------------
+LOCAL_PROMENU2_1_3_FFW:	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_3_PFFW:
+	LACK	1
+	SAH	SYSTMP1
+	LACK	12
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_ADD
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_MONTH
+;---------------------------------------
+LOCAL_PROMENU2_1_3_MENU:
+	LAC	MSG_N
+	ORL	0X7500
+	CALL	DAM_BIOSFUNC	;Set month
+
+	LACL	0X7000
+	CALL	DAM_BIOSFUNC	;Clear second
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	CALL	SENDTIME
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+	
+	LACK	0X41
+	SAH	PRO_VAR
+
+	;LACL	0X8400
+	;CALL	DAM_BIOSFUNC	;Get day
+	LAC	TMR_DAY
+	SAH	MSG_N		;CURRENT VALUE
+
+LOCAL_PROMENU2_SENDCOMM_DAY:	
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CCOMMOND_DAY
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+;-----------------------------------------------------------
+LOCAL_PROMENU2_1_4:		;adjust day
+;MAIN_PRO9_1_4_0:
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,MAIN_PRO9_VPSTOP	;VP end
+;MAIN_PRO9_1_4_1:		
+	LAC	MSG
+	XORL	CMSG_KEY5S
+	BS	ACZ,LOCAL_PROMENU2_1_4_REW	;REW
+;MAIN_PRO9_1_4_2:	
+	LAC	MSG
+	XORL	CMSG_KEY9S
+	BS	ACZ,LOCAL_PROMENU2_1_4_FFW	;FFW
+;MAIN_PRO9_1_4_3:	
+	LAC	MSG
+	XORL	CMSG_KEY5P
+	BS	ACZ,LOCAL_PROMENU2_1_4_PREW	;REW
+;MAIN_PRO9_1_4_4:	
+	LAC	MSG
+	XORL	CMSG_KEY9P
+	BS	ACZ,LOCAL_PROMENU2_1_4_PFFW	;FFW
+;MAIN_PRO9_1_4_5:
+	LAC	MSG
+	XORL	CMSG_KEYCS
+	BS	ACZ,LOCAL_PROMENU2_1_4_MENU	;MENU
+;MAIN_PRO9_1_4_6:
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROMENU_STOP	;STOP	
+
+	RET
+;---------------------------------------respond9-1-4(day)
+LOCAL_PROMENU2_1_4_REW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_4_PREW:
+	LACK	1
+	SAH	SYSTMP1
+	LACK	31
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_SUB
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_DAY
+;---------------------------------------
+LOCAL_PROMENU2_1_4_FFW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_4_PFFW:
+	LACK	1
+	SAH	SYSTMP1
+	LACK	31
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_ADD
+	SAH	MSG_N
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_DAY
+;---------------------------------------	
+LOCAL_PROMENU2_1_4_MENU:
+	LAC	MSG_N
+	ORL	0X7400
+	CALL	DAM_BIOSFUNC	;Set day
+	
+	LACL	0X7000
+	CALL	DAM_BIOSFUNC	;Clear second
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	CALL	SENDTIME
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+	
+	LACK	0X51
+	SAH	PRO_VAR
+
+	;LACL	0X8300
+	;CALL	DAM_BIOSFUNC	;Get week
+	LAC	TMR_WEEK
+	SAH	MSG_N		;CURRENT VALUE
+
+LOCAL_PROMENU2_SENDCOMM_WEEK:	
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CCOMMOND_WEEK
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+;-----------------------------------------------------------
+LOCAL_PROMENU2_1_5:		;adjust week
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,MAIN_PRO9_VPSTOP	;VP end
+;LOCAL_PROMENU2_1_5_1:		
+	LAC	MSG
+	XORL	CMSG_KEY5S
+	BS	ACZ,LOCAL_PROMENU2_1_5_REW	;REW
+;LOCAL_PROMENU2_1_5_2:	
+	LAC	MSG
+	XORL	CMSG_KEY9S
+	BS	ACZ,LOCAL_PROMENU2_1_5_FFW	;FFW
+;LOCAL_PROMENU2_1_5_3:	
+	LAC	MSG
+	XORL	CMSG_KEY5P
+	BS	ACZ,LOCAL_PROMENU2_1_5_PREW	;REW
+;LOCAL_PROMENU2_1_5_4:	
+	LAC	MSG
+	XORL	CMSG_KEY9P
+	BS	ACZ,LOCAL_PROMENU2_1_5_PFFW	;FFW
+;LOCAL_PROMENU2_1_5_5:
+	LAC	MSG
+	XORL	CMSG_KEYCS
+	BS	ACZ,LOCAL_PROMENU2_1_5_MENU	;MENU
+;LOCAL_PROMENU2_1_5_6:
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROMENU_STOP	;STOP	
+
+	RET
+;-------respond9-1-5(week)
+;---------------------------------------
+LOCAL_PROMENU2_1_5_REW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+
+LOCAL_PROMENU2_1_5_PREW:
+	LACK	0
+	SAH	SYSTMP1
+	LACK	6
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_SUB
+	SAH	MSG_N
+
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_WEEK
+;---------------------------------------
+LOCAL_PROMENU2_1_5_FFW:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BEEP		;BEEP
+LOCAL_PROMENU2_1_5_PFFW:
+	LACK	0
+	SAH	SYSTMP1
+	LACK	6
+	SAH	SYSTMP2
+
+	LAC	MSG_N
+	CALL	VALUE_ADD
+	SAH	MSG_N
+	
+	BS	B1,LOCAL_PROMENU2_SENDCOMM_WEEK
+;---------------------------------------
+LOCAL_PROMENU2_1_5_MENU:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LAC	MSG_N
+	ORL	0X7300
+	CALL	DAM_BIOSFUNC	;Set week
+	LACL	0X7000
+	CALL	DAM_BIOSFUNC	;Clear second
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+.if	0
+	LACK	CGROUP_DATETIME
+	CALL	SET_TELGROUP
+	
+	LACK	1
+	CALL	DEL_ONETEL
+	CALL	TEL_GC_CHK
+	CALL	GC_CHK
+
+	CALL	DATETIME_WRITE
+.endif
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACK	CGROUP_DATT
+	CALL	SET_TELGROUP
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	CALL	SENDTIME
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	CALL	CLR_FUNC
+	LACK	0X0
+	SAH	PRO_VAR
+	LACL	CMENU_CTRT
+	CALL	STOR_MSG
+
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROMENU2_2:
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROMENU2_2_VPSTOP	;VP end
+	
+	RET
+;---------------------------------------
+LOCAL_PROMENU2_2_VPSTOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LACL	0X9E		;exit COMMAND = 0X9E+6
+	CALL	SEND_DAT
+	LACK	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROMENU_STOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_BSPK
+	CALL	BBEEP		;BB
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	CALL	SENDTIME
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACK	CGROUP_DATETIME
+	CALL	SET_TELGROUP
+	
+	LACK	1
+	CALL	DEL_ONETEL
+	CALL	TEL_GC_CHK
+	CALL	GC_CHK
+
+	CALL	DATETIME_WRITE
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+.if	0
+	LACK	CGROUP_DATT
+	CALL	SET_TELGROUP
+	LACK	1
+	CALL	DEL_ONETEL
+	CALL	TEL_GC_CHK
+	CALL	GC_CHK
+	
+	LACL	TEL_RAM
+	SAH	ADDR_S
+	LACK	0
+	SAH	OFFSET_S
+	CALL	TELNUM_WRITE	;写入数据	
+	CALL	DAT_WRITE_STOP
+.endif
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LAC	VOP_FG
+	ANDL	~(1<<15)
+	SAH	VOP_FG
+	
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LACL	0X9E		;exit COMMAND = 0X9E+6
+	CALL	SEND_DAT
+	LACK	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	CLR_FUNC
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+MAIN_PROX_RINGIN:
+	CALL	INIT_DAM_FUNC
+
+	LAC	VOP_FG
+	ANDL	~(1<<15)
+	SAH	VOP_FG
+	
+	CALL	BLED_ON
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X9E
+	CALL	SEND_DAT
+	LACL	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	CLR_FUNC
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+
+;-------------------------------------------------------------------------------
+.INCLUDE l_sendtime.asm
+;=========================================================================
+	
+.END
+

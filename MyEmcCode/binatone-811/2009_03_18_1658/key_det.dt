@@ -1,0 +1,465 @@
+
+ORG	(1<<10)
+;-------------------------------------------------------------------------------
+;	B2_TMR_KEYSCAN(2..0) = 0/1/2/3/4/5/6/7 => Output : p6.0/12/3/4/5/6/7
+;-------------------------------------------------------------------------------
+INTKEYSCAN_OUT:
+	AND	_RE,@(0xFB)			; blank LCD
+	IOR	_IOCE
+	AND	A,@(0XDF)	;p6 as normal I/O port
+	IOW	_IOCE
+	
+	BS	_P9,6		;enable key scan
+
+	BC	_STATUS,C
+	MOV	TEMP0,@(0xff)
+	ANDA	B2_TMR_KEYSCAN,@(0x07)
+	TBL
+	RRC	TEMP0
+	RRC	TEMP0
+	RRC	TEMP0
+	RRC	TEMP0
+	RRC	TEMP0
+	RRC	TEMP0
+	RRC	TEMP0
+	RRCA	TEMP0
+	
+	IOW	_IOC6
+	MOV	_R6,A
+
+	RET
+;---------------------------------------
+INTKEYSCAN_IN:
+	MOV	TEMP0,@(BANK2+B2_KEY1_GET-1)
+	RRCA	B2_TMR_KEYSCAN
+	AND	A,@(0x03)
+	TBL
+	INC	TEMP0
+	INC	TEMP0
+	INC	TEMP0
+	INC	TEMP0
+	MOV	_RSR,TEMP0
+
+	JPB	B2_TMR_KEYSCAN,0,INTKEYSCANIN_L_NIBBLE
+INTKEYSCANIN_H_NIBBLE:		;read the p7 low-nibble and stor it in R0 high-nibble
+	AND	_R0,@(0x0f)
+	SWAPA	_R7
+	AND	A,@(0xf0)
+	JMP	INTKEYSCANIN_1
+INTKEYSCANIN_L_NIBBLE:		;read the p7 low-nibble and stor it in R0 low-nibble
+	AND	_R0,@(0xf0)
+	ANDA	_R7,@(0x0f)
+INTKEYSCANIN_1:
+	OR	_R0,A
+	IOW	_IOC6,@(0xff)	;input port
+	
+	BC	_P9,6
+	
+	IOR	_IOCE
+	OR	A,@(0x20)	;p6 as common output
+	IOW	_IOCE
+	OR	_RE,@(0x06)			; open LCD
+;---	
+	RET
+;-------------------------------------------------------------------------------
+;	input : ACC = Key value
+;		temp1 = counter
+;	output:	ACC = 字符码
+;		temp1 = counter
+;-------------------------------------------------------------------------------
+GET_KEYCAHR:
+	MOV	TEMP0,A
+GET_KEYCAHR_1:
+	MOV	A,TEMP0
+	AND	A,@0X1F
+	MTBL
+	JMP	GET_KEYCAHR_RET	;0x00 SPACE
+	JMP	GET_KEYCAHR_RET	;0x01 !
+	JMP	GET_KEYCAHR_RET	;0x02 "
+	JMP	KEYJIN_TAB	;0x03 #
+	JMP	GET_KEYCAHR_RET	;0x04 $
+	JMP	GET_KEYCAHR_RET	;0x05 %
+	JMP	GET_KEYCAHR_RET	;0x06 &
+	JMP	GET_KEYCAHR_RET	;0x07 '
+	JMP	GET_KEYCAHR_RET	;0x08 (
+	JMP	GET_KEYCAHR_RET	;0x09 )
+	JMP	KEYXIN_TAB	;0x0A *
+	JMP	GET_KEYCAHR_RET	;0x0B +
+	JMP	GET_KEYCAHR_RET	;0x0C ,
+	JMP	GET_KEYCAHR_RET	;0x0D -
+	JMP	GET_KEYCAHR_RET	;0x0E .
+	JMP	GET_KEYCAHR_RET	;0x0F /
+	JMP	KEY0_TAB	;0x10 0
+	JMP	KEY1_TAB	;0x11 1
+	JMP	KEY2_TAB	;0x12 2
+	JMP	KEY3_TAB	;0x13 3
+	JMP	KEY4_TAB	;0x14 4
+	JMP	KEY5_TAB	;0x15 5
+	JMP	KEY6_TAB	;0x16 6
+	JMP	KEY7_TAB	;0x17 7
+	JMP	KEY8_TAB	;0x18 8
+	JMP	KEY9_TAB	;0x19 9
+
+	ENDT
+KEY1_TAB:
+
+	MOV	A,TEMP1
+	AND	A,@0X0F
+	MTBL
+	RETL	@CH_1		;1	;0
+	RETL	@CH_SCH1	;/	;1
+	RETL	@CH_DOT		;.	;2
+	RETL	@CH_COMMA	;,	;3
+	RETL	@CH_AMPERE	;-	;4
+	RETL	@CH__		;_	;5
+	RETL	@CH_LEFTB	;(	;6
+	RETL	@CH_RIGHTB	;)	;7
+	RETL	@CH_COLON	;:	;8
+	JMP	GET_KEYCAHR_2		;9
+	JMP	GET_KEYCAHR_2		;A
+	JMP	GET_KEYCAHR_2		;B
+	JMP	GET_KEYCAHR_2		;C
+	JMP	GET_KEYCAHR_2		;D
+	JMP	GET_KEYCAHR_2		;E
+	JMP	GET_KEYCAHR_2		;F
+	ENDT
+;---
+KEY2_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X03
+	MTBL
+	RETL	@CH_A
+	RETL	@CH_B
+	RETL	@CH_C
+	RETL	@CH_2
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEY3_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X03
+	MTBL
+	RETL	@CH_D
+	RETL	@CH_E
+	RETL	@CH_F
+	RETL	@CH_3
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEY4_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X03
+	MTBL
+	RETL	@CH_G
+	RETL	@CH_H
+	RETL	@CH_I
+	RETL	@CH_4
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEY5_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X03
+	MTBL
+	RETL	@CH_J
+	RETL	@CH_K
+	RETL	@CH_L
+	RETL	@CH_5
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEY6_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X03
+	MTBL
+	RETL	@CH_M
+	RETL	@CH_N
+	RETL	@CH_O
+	RETL	@CH_6
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEY7_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X07
+	MTBL
+	RETL	@CH_P
+	RETL	@CH_Q
+	RETL	@CH_R
+	RETL	@CH_S
+	RETL	@CH_7
+	JMP	GET_KEYCAHR_2
+	JMP	GET_KEYCAHR_2
+	JMP	GET_KEYCAHR_2
+	ENDT
+;---
+KEY8_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X03
+	MTBL
+	RETL	@CH_T
+	RETL	@CH_U
+	RETL	@CH_V
+	RETL	@CH_8
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEY9_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X07
+	MTBL
+	RETL	@CH_W
+	RETL	@CH_X
+	RETL	@CH_Y
+	RETL	@CH_Z
+	RETL	@CH_9
+	JMP	GET_KEYCAHR_2
+	JMP	GET_KEYCAHR_2
+	JMP	GET_KEYCAHR_2
+	ENDT
+;---
+KEYXIN_TAB:
+	RETL	@CH_XIN
+	;JMP	GET_KEYCAHR_2
+;---
+KEY0_TAB:
+	MOV	A,TEMP1
+	AND	A,@0X01
+	MTBL
+	RETL	@CH_0
+	RETL	@CH_BLANK
+	ENDT
+	;JMP	GET_KEYCAHR_2
+;---
+KEYJIN_TAB:
+	RETL	@CH_JIN
+	;JMP	GET_KEYCAHR_2
+GET_KEYCAHR_2:
+
+	CLR	TEMP1
+	JMP	GET_KEYCAHR_1
+GET_KEYCAHR_RET:
+	RETL	@CH_END
+;-------------------------------------------------------------------------------
+;	KEY_CHK
+;	check key bitmap with specific row/col
+;	input : ACCH(7..4)=row,ACCH(3..0)=col
+;	output: _STATUS.C
+;-------------------------------------------------------------------------------
+KEY_CHK:
+	DISI
+	
+	MOV	TEMP0,A
+	
+	MOV 	A,_R4
+	MOV 	OLD_RAM,A	;PUSH _R4
+;---
+;---Get row	
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	ADD	A,@(BANK2+B2_KEY1_VAL-1)
+	MOV	_RSR,A
+
+	MOV	TEMP1,_R0	;The value with specific row
+	
+	MOV	A,TEMP0
+	AND	A,@(0x07)
+	MTBL
+	RLC	TEMP1
+	RLC	TEMP1
+	RLC	TEMP1
+	RLC	TEMP1
+	RLC	TEMP1
+	RLC	TEMP1
+	RLC	TEMP1
+	RLC	TEMP1
+	ENDT
+;---	
+	MOV 	A,OLD_RAM
+	MOV 	_R4,A		;POP _R4
+	
+	RETI
+;-------------------------------------------------------------------------------
+;	B2_KEYFLAG(bit4) - 有按键动作被扫描到
+;	B2_KEYFLAG(bit5) - 有按键动作被扫描到并已通过防抖确认
+;Note : 此处代码可大规模精减
+;-------------------------------------------------------------------------------
+
+KEYSCAN_AFFIRM:
+	BANK	2
+;---查是否有多键按下,是就退出
+	CLR	TEMP1
+	MOV	A,B2_KEY1_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	SUB	A,@2
+	JPNC	INTKEYSCAN_AFFIRM_END	;有两个或以上的键按下
+
+	MOV	A,B2_KEY2_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	SUB	A,@2
+	JPNC	INTKEYSCAN_AFFIRM_END	;有两个或以上的键按下
+	
+	MOV	A,B2_KEY3_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	SUB	A,@2
+	JPNC	INTKEYSCAN_AFFIRM_END	;有两个或以上的键按下
+	
+	MOV	A,B2_KEY4_GET
+	OR	A,@0XF0		;!!!
+	CALL	KEYSCAN_MUTIL_CHK
+	SUB	A,@2
+	JPNC	INTKEYSCAN_AFFIRM_END	;有两个或以上的键按下
+
+	JPNB	B2_KEYFLAG,5,KEYSCAN_AFFIRM_0
+;---有键按下且通过防抖确认
+	MOV	A,B2_TMR_PLUSE_BAK
+	JPZ	KEYSCAN_AFFIRM_0
+	
+	MOV	A,B2_TMR_PLUSE
+	JPNZ	KEYSCAN_AFFIRM_0
+	
+	MOV	A,B2_TMR_PLUSE_BAK
+	MOV	B2_TMR_PLUSE,A
+	
+	MOV	A,@CMSG_CKEY
+	LCALL	STOR_MSG
+KEYSCAN_AFFIRM_0:
+;---查是否有按键动作
+	XORA	B2_KEY1_GET,B2_KEY1_BAK
+	;AND	A,@(0XFF)
+	JPNZ	KEYSCAN_AFFIRM_1
+	XORA	B2_KEY2_GET,B2_KEY2_BAK
+	;AND	A,@(0XFF)
+	JPNZ	KEYSCAN_AFFIRM_1
+	XORA	B2_KEY3_GET,B2_KEY3_BAK
+	;AND	A,@(0XFF)
+	JPNZ	KEYSCAN_AFFIRM_1
+	XORA	B2_KEY4_GET,B2_KEY4_BAK
+	AND	A,@(0X0F)
+	JPNZ	KEYSCAN_AFFIRM_1
+;---查无按键动作
+	BC	B2_KEYFLAG,4
+	JMP	INTKEYSCAN_AFFIRM_END	;old-key-val = new-key-val
+;---------------------------------------
+KEYSCAN_AFFIRM_1:			;old-key-val != new-key-val
+	JPB	B2_KEYFLAG,4,KEYSCAN_AFFIRM_1_DELAY
+;---查到有键从无到有按下/松开,设状态并开始计时
+
+	BS	B2_KEYFLAG,4
+	MOV	B2_TMR_KEYAFFM,@CKEYTMR_UNIT	;防抖时间
+	JMP	INTKEYSCAN_AFFIRM_END
+;---------------------------------------
+KEYSCAN_AFFIRM_1_DELAY:		;有按键被扫描到
+	CLR	TEMP1
+	MOV	A,B2_KEY1_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	MOV	A,B2_KEY2_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	MOV	A,B2_KEY3_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	MOV	A,B2_KEY4_GET
+	CALL	KEYSCAN_MUTIL_CHK
+	JPZ	KEYSCAN_AFFIRM_1_BKEY	;按下的键值为零,也就是松开
+
+;---再次查到有键持续按下,查按下的时间
+	MOV	A,B2_TMR_KEYAFFM
+	;SUB	A,@0
+	JPNZ	INTKEYSCAN_AFFIRM_END
+;---有按键被扫描到并已通过防抖确认
+	MOV	A,B2_KEY1_GET
+	MOV	B2_KEY1_BAK,A
+	MOV	B2_KEY1_VAL,A
+
+	MOV	A,B2_KEY2_GET
+	MOV	B2_KEY2_BAK,A
+	MOV	B2_KEY2_VAL,A
+	
+	MOV	A,B2_KEY3_GET
+	MOV	B2_KEY3_BAK,A
+	MOV	B2_KEY3_VAL,A
+	
+	MOV	A,B2_KEY4_GET
+	MOV	B2_KEY4_BAK,A
+	MOV	B2_KEY4_VAL,A
+
+	MOV	A,@CMSG_MKEY
+	LCALL	STOR_MSG
+	
+	BS	B2_KEYFLAG,5
+	JMP	INTKEYSCAN_AFFIRM_END
+KEYSCAN_AFFIRM_1_BKEY:		;break key
+;---有按键松开被扫描到(无防抖)
+	MOV	B2_KEY1_BAK,B2_KEY1_GET
+	MOV	B2_KEY2_BAK,B2_KEY2_GET
+	MOV	B2_KEY3_BAK,B2_KEY3_GET
+	MOV	B2_KEY4_BAK,B2_KEY4_GET
+
+	LCALL	CLR_PTIMER
+	
+	MOV	A,@CMSG_BKEY
+	LCALL	STOR_MSG
+
+	
+	BC	B2_KEYFLAG,5
+		
+INTKEYSCAN_AFFIRM_END:
+
+	RET
+;-------------------------------------------------------------------------------
+;	按键数计数:加入TEMP1中 --- Note:not from '0'
+;	
+;-------------------------------------------------------------------------------
+KEYSCAN_MUTIL_CHK:
+	MOV	TEMP0,A
+	XOR	A,@0XFF
+	JPZ	KEYSCAN_MUTIL_CHK_END
+	
+	CLR	TEMP2
+
+	CLRC
+KEYSCAN_MUTIL_CHK_LOOP:
+	RLC	TEMP0
+	JBS	_STATUS,C
+	INC	TEMP1		;零计数
+	
+	INC	TEMP2		;循环计数,8次退出
+	MOV	A,TEMP2
+	SUB	A,@8
+	JPNZ	KEYSCAN_MUTIL_CHK_LOOP
+KEYSCAN_MUTIL_CHK_END:	
+	MOV	A,TEMP1
+
+	RET
+;-------------------------------------------------------------------------------
+;	KEY pressed or not
+;	
+;-------------------------------------------------------------------------------
+KEYPRESS_CHK:
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+
+	BANK	2
+	
+	MOV	A,B2_KEY1_GET
+	XOR	A,@0XFF
+	JPNZ	KEYPRESS_CHK_1
+	MOV	A,B2_KEY2_GET
+	XOR	A,@0XFF
+	JPNZ	KEYPRESS_CHK_1
+	MOV	A,B2_KEY3_GET
+	XOR	A,@0XFF
+	JPNZ	KEYPRESS_CHK_1
+	MOV	A,B2_KEY4_GET
+	XOR	A,@0XFF
+	JPNZ	KEYPRESS_CHK_1
+	
+	CLRC
+KEYPRESS_CHKEND:
+	MOV	A,OLD_RAM
+	MOV	_R4,A
+
+	RET
+KEYPRESS_CHK_1:
+	SETC
+	JMP	KEYPRESS_CHKEND
+;-------------------------------------------------------------------------------

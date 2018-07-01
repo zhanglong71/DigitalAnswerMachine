@@ -1,0 +1,822 @@
+.NOLIST
+.INCLUDE MD20U.INC
+.INCLUDE REG_D20.inc
+.INCLUDE CONST.INC
+.INCLUDE EXTERN.INC
+;-------------------------------------------------------------------------------
+.EXTERN	SetFlashStartAddress
+.EXTERN	LoadHostCode
+.EXTERN	GetOneConst	;(INPUT=ACCH(ProgramRamAddress),OUTPUT=ACCH(ReadData))
+.EXTERN	GetMoreConst	;(INPUT=ACCH(ProgramRamStartingAddress)ACCL(ReadWordNumber)AR1(StoreDataRamAddress),OUTPUT=)
+;-------------------------------------------------------------------------------
+.global	LOCAL_PROFIXF	;fixf function
+;-------------------------------------------------------------------------------
+.LIST
+.ORG    ADDR_SECOND
+;-------------------------------------------------------------------------------
+LOCAL_PROFIXF:
+	LAC	PRO_VAR
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROFIXF_0	;(0xyyy0)
+	SBHK	1
+	BS	ACZ,LOCAL_PROVOL	;(0xyyy1)
+	SBHK	1
+	BS	ACZ,LOCAL_PROBOX	;(0xyyy2)
+	SBHK	1
+	BS	ACZ,LOCAL_PRODEL	;(0xyyy3)
+	SBHK	1
+	BS	ACZ,LOCAL_PROTIM	;(0xyyy4)
+	SBHK	1
+	BS	ACZ,LOCAL_PROFMT	;(0xyyy5)
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROFIXF_0:
+	LAC	MSG
+	XORL	CMSG_KEY3S
+	BS	ACZ,LOCAL_PROFIXF_0_TIME
+	LAC	MSG
+	XORL	CMSG_KEY8L
+	BS	ACZ,LOCAL_PROFIXF_0_ERAS
+	LAC	MSG
+	XORL	CMSG_KEY7L
+	BS	ACZ,LOCAL_PROFIXF_0_FORMAT
+	LAC	MSG
+	XORL	CMSG_KEY6L
+	BS	ACZ,LOCAL_PROFIXF_0_MBOX_1
+	LAC	MSG
+	XORL	CMSG_KEY6S
+	BS	ACZ,LOCAL_PROFIXF_0_MBOX
+	
+	LAC	MSG
+	XORL	CMSG_KEYBS
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	LAC	MSG
+	XORL	CMSG_KEYBP
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	LAC	MSG
+	XORL	CMSG_KEYAS
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	LAC	MSG
+	XORL	CMSG_KEYAP
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_TIME:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	CURR_WEEK
+	CALL	CURR_HOUR
+	CALL	CURR_MIN
+	CALL	BLED_ON
+	
+	LACK	0X04
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_FORMAT:
+	CALL	INIT_DAM_FUNC
+	LACL	4000
+	CALL	SET_TIMER
+	LACK	0X05
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_ERAS:
+	CALL	INIT_DAM_FUNC
+	
+	CALL	BLED_ON
+	
+	LACK	0X03
+	SAH	PRO_VAR
+	
+	CALL	VPMSG_CHK
+	LAC	MSG_T
+	BS	ACZ,LOCAL_PROFIXF_0_ERAS_1
+
+	LACL	0X6100
+	CALL	DAM_BIOSFUNC
+	
+	LACL	0X6080
+	CALL	DAM_BIOSFUNC
+	CALL	TELNUMALL_DEL	;删除没有对应message的电话号码
+	CALL	TEL_GC_CHK
+
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X83		;录音数量同步(3bytes)
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LAC	MSG_T
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	DAA_SPK
+	CALL	BB_VOP
+	BS	B1,LOCAL_PROFIXF_0_ERAS_END	
+LOCAL_PROFIXF_0_ERAS_1:
+	CALL	DAA_SPK
+	CALL	VP_NO		;no
+	CALL	VP_MESSAGES	;messages
+	CALL	BB_VOP		;替换语音BB
+LOCAL_PROFIXF_0_ERAS_END:
+		
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_MBOX:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BLED_ON
+	CALL	VP_MAILBOX	;mailbox
+	LAC	MBOX_ID		;messages
+	CALL	ANNOUNCE_NUM
+
+	LACK	0X12
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_MBOX_1:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BLED_ON
+	CALL	VP_MAILBOX	;mailbox
+	LAC	MBOX_ID		;messages
+	CALL	ANNOUNCE_NUM
+
+	LACK	0X02
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_VOL:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BLED_ON	
+	LAC	MSG
+	CALL	STOR_MSG
+	
+	LACK	0
+	SAH	PRO_VAR1
+	LACL	400
+	CALL	SET_TIMER
+
+	LACK	0X01
+	SAH	PRO_VAR
+	
+	RET
+;-------------------------------------------------------------------------------	
+LOCAL_PROVOL:
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0XF
+	BS	ACZ,LOCAL_PROVOL_0
+	SBHK	1
+	BS	ACZ,LOCAL_PROVOL_1
+	
+	RET
+;-----------------------------------------------------------	
+LOCAL_PROVOL_0:	
+	LAC	MSG
+	XORL	CMSG_KEYBS
+	BS	ACZ,LOCAL_PROVOL_0_VOLAEND
+	LAC	MSG
+	XORL	CMSG_KEYBP
+	BS	ACZ,LOCAL_PROVOL_0_VOLA
+	LAC	MSG
+	XORL	CMSG_KEYAS
+	BS	ACZ,LOCAL_PROVOL_0_VOLSEND
+	LAC	MSG
+	XORL	CMSG_KEYAP
+	BS	ACZ,LOCAL_PROVOL_0_VOLS
+
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROVOL_RING
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROVOL_STOP
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROVOL_0_VPSTOP
+
+	RET
+;---------------------------------------
+LOCAL_PROVOL_0_VOLAEND:
+	LACK	0X11
+	SAH	PRO_VAR
+LOCAL_PROVOL_0_VOLA:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	
+	LACL	CMSG_VOLA
+	CALL	STOR_MSG
+	
+	LAC	VOI_ATT
+	ANDK	0X7
+	SBHK	CMAX_VOL
+	BZ	SGN,LOCAL_PROVOL_0_VPWORN
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LACL	0XCB
+	CALL	SEND_DAT
+	LAC	VOI_ATT
+	ANDK	0X7
+	ADHK	1
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	BS	B1,LOCAL_PROVOL_0_VPNORMAL
+
+;---------------------------------------
+LOCAL_PROVOL_0_VOLSEND:
+	LACK	0X11
+	SAH	PRO_VAR
+LOCAL_PROVOL_0_VOLS:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	LACL	CMSG_VOLS
+	CALL	STOR_MSG
+	LAC	VOI_ATT
+	ANDK	0X7
+	SBHK	CMIN_VOL+1
+	BS	SGN,LOCAL_PROVOL_0_VPWORN
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LACL	0XCB
+	CALL	SEND_DAT
+	LAC	VOI_ATT
+	ANDK	0X7
+	SBHK	1
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+LOCAL_PROVOL_0_VPNORMAL:
+	CALL	INIT_DAM_FUNC	
+	CALL	BEEP
+	RET
+LOCAL_PROVOL_0_VPWORN:
+	CALL	INIT_DAM_FUNC	;
+	CALL	BBBEEP
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0XCB
+	CALL	SEND_DAT
+	LAC	VOI_ATT
+	ANDK	0X7
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+;---------------------------------------
+LOCAL_PROVOL_0_VPSTOP:
+LOCAL_PROVOL_1_VPSTOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACL	3000
+	CALL	SET_TIMER
+	
+	RET
+;---------------------------------------
+LOCAL_PROVOL_TMR:
+	BS	B1,LOCAL_PROX_RINGIN
+LOCAL_PROVOL_RING:
+	BS	B1,LOCAL_PROX_RINGIN
+;---------------------------------------
+LOCAL_PROVOL_STOP:
+	BS	B1,LOCAL_PROX_RINGIN
+;-------------------------------------------------------------------------------
+LOCAL_PROVOL_1:
+	LAC	MSG
+	XORL	CMSG_KEYBS
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	LAC	MSG
+	XORL	CMSG_KEYBP
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	LAC	MSG
+	XORL	CMSG_KEYAS
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+	LAC	MSG
+	XORL	CMSG_KEYAP
+	BS	ACZ,LOCAL_PROFIXF_0_VOL
+;---	
+	LAC	MSG
+	XORL	CMSG_KEYBD
+	BS	ACZ,LOCAL_PROFIXF_0_NOACTION
+	LAC	MSG
+	XORL	CMSG_KEYAD
+	BS	ACZ,LOCAL_PROFIXF_0_NOACTION
+;---
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROVOL_1_RING
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROVOL_1_STOP
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROVOL_1_VPSTOP
+	LAC	MSG
+	XORL	CMSG_TMR
+	BS	ACZ,LOCAL_PROVOL_TMR
+;---	
+	LAC	MSG
+	SBHL	0X80
+	BS	SGN,LOCAL_PROVOL_1_ANOTHER
+	LAC	MSG
+	SBHL	0XE0
+	BZ	SGN,LOCAL_PROVOL_1_ANOTHER
+	
+	RET
+;---------------------------------------
+LOCAL_PROFIXF_0_NOACTION:
+	RET
+LOCAL_PROVOL_1_RING:
+	BS	B1,LOCAL_PROX_RINGIN
+LOCAL_PROVOL_1_STOP:
+	BS	B1,LOCAL_PROX_RINGIN
+LOCAL_PROVOL_1_ANOTHER:
+
+	CALL	INIT_DAM_FUNC
+	CALL	CLR_FUNC
+	LACK	0
+	SAH	PRO_VAR
+	CALL	BLED_ON
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X9E
+	CALL	SEND_DAT
+	LACL	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LAC	MSG
+	CALL	STOR_MSG
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PRODEL:
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PRODEL_RING
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PRODEL_STOP
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PRODEL_VPSTOP
+	
+	RET
+;---------------------------------------
+LOCAL_PRODEL_RING:
+	BS	B1,LOCAL_PROX_RINGIN
+;---------------------------------------
+LOCAL_PRODEL_VPSTOP:
+	BS	B1,LOCAL_PROX_RINGIN
+;---------------------------------------
+LOCAL_PRODEL_STOP:
+	BS	B1,LOCAL_PROX_RINGIN
+;-------------------------------------------------------------------------------
+LOCAL_PROBOX:		;Change mailbox
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0XF
+	BS	ACZ,LOCAL_PROBOX_0	;Announce mailbox nr
+	SBHK	1
+	BS	ACZ,LOCAL_PROBOX_1	;Announce end
+	SBHK	1
+	BS	ACZ,LOCAL_PROBOX_2	;Announce end
+		
+	RET
+;-----------------------------------------------------------
+LOCAL_PROBOX_0:		;"mbox"按下状态
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROBOX_RING
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROBOX_VPSTOP
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROBOX_STOP
+	LAC	MSG
+	XORL	CMSG_KEY6S
+	BS	ACZ,LOCAL_PROBOX_OK
+
+	RET
+;---------------------------------------
+LOCAL_PROBOX_RING:
+	BS	B1,LOCAL_PROX_RINGIN
+;---------------------------------------
+LOCAL_PROBOX_STOP:
+	BS	B1,LOCAL_PROX_RINGIN
+;---------------------------------------
+LOCAL_PROBOX_VPSTOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACL	1000
+	CALL	SET_TIMER
+	LACK	0X22
+	SAH	PRO_VAR
+	
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X83		;录音数量同步(3bytes)
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LAC	MSG_T
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X0FF
+	CALL	SEND_DAT	
+
+	RET
+;---------------------------------------
+LOCAL_PROBOX_OK:
+	BS	B1,LOCAL_PROFIXF_0_MBOX
+;-------------------------------------------------------------------------------
+LOCAL_PROBOX_1:		;"mbox"松开状态
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROBOX_1_RING
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROBOX_1_VPSTOP
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROBOX_1_STOP
+	LAC	MSG
+	XORL	CMSG_KEY6S
+	BS	ACZ,LOCAL_PROBOX_OK
+	LAC	MSG
+	XORL	CMSG_KEY6L
+	BS	ACZ,LOCAL_PROBOX_1_MBOXL
+
+	RET
+;---------------------------------------
+LOCAL_PROBOX_1_MBOXL:
+	BS	B1,LOCAL_PROFIXF_0_MBOX_1
+LOCAL_PROBOX_1_RING:
+	BS	B1,LOCAL_PROX_RINGIN
+LOCAL_PROBOX_1_VPSTOP:
+	BS	B1,LOCAL_PROX_RINGIN
+LOCAL_PROBOX_1_STOP:
+	BS	B1,LOCAL_PROX_RINGIN
+;-------------------------------------------------------------------------------
+LOCAL_PROBOX_2:		;"mbox"按下的VOP间隙状态
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROBOX_RING
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROBOX_2_VPSTOP
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROBOX_STOP
+	LAC	MSG
+	XORL	CMSG_KEY6S
+	BS	ACZ,LOCAL_PROBOX_OK
+	LAC	MSG
+	XORL	CMSG_KEY6L
+	BS	ACZ,LOCAL_PROBOX_2_MBOXL
+	LAC	MSG
+	XORL	CMSG_TMR
+	BS	ACZ,LOCAL_PROBOX_2_TMR
+
+	RET
+;---------------------------------------
+LOCAL_PROBOX_2_VPSTOP:
+	CALL	DAA_OFF
+	
+	RET
+;---------------------------------------
+LOCAL_PROBOX_2_MBOXL:
+	BS	B1,LOCAL_PROFIXF_0_MBOX_1
+;---------------------------------------
+LOCAL_PROBOX_2_TMR:
+	CALL	CLR_TIMER
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	LAC	MBOX_ID
+	ADHK	1
+	ANDK	0X3
+	BZ	ACZ,LOCAL_PROBOX_2_TMR_1
+	LACK	1
+LOCAL_PROBOX_2_TMR_1:
+	SAH	MBOX_ID		;mbox-id(1,2,3)
+	CALL	ANNOUNCE_NUM
+	
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X83		;录音数量同步(3bytes)
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LAC	MSG_T
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X0FF
+	CALL	SEND_DAT	
+
+	LACK	0X02
+	SAH	PRO_VAR
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROTIM:
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROTIM_RING
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROTIM_VPSTOP
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROTIM_STOP
+
+	RET
+;---------------------------------------
+LOCAL_PROTIM_STOP:
+LOCAL_PROTIM_VPSTOP:
+LOCAL_PROTIM_RING:
+	BS	B1,LOCAL_PROX_RINGIN
+
+;-------------------------------------------------------------------------------
+LOCAL_PROFMT:
+	LAC	MSG
+	XORL	CMSG_TMR
+	BS	ACZ,LOCAL_PROFMT_TMR		;
+	LAC	MSG
+	XORL	CMSG_KEY7S
+	BS	ACZ,LOCAL_PROFMT_STOP
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROFMT_VPSTOP
+	
+	RET
+;---------------------------------------
+LOCAL_PROFMT_TMR:
+	CALL	INIT_DAM_FUNC
+	LACL	0X9001
+	CALL	DAM_BIOSFUNC
+	LACL	CMODE9
+	CALL	DAM_BIOSFUNC
+	CALL	SET_DECLTEL
+
+	CALL	GET_INITLANGUAGE
+
+	CALL	SENDLANGUAGE	;(2bytes)语言选择(Default = German)Make Sure it is the first command to MCU after Power-on
+	LACL	0X0FF
+	CALL	SEND_DAT	;(1byte)
+
+	CALL	DATETIME_WRITE
+	CALL	INITMCU
+
+	CALL	CLR_LED1FG	;clear new call flag
+	
+	LACK	3
+	SAH	MBOX_ID
+	CALL	VPMSG_CHK
+        CALL	NEWICM_CHK
+        
+	LACK	2
+	SAH	MBOX_ID
+	CALL	VPMSG_CHK
+        CALL	NEWICM_CHK
+        
+	LACK	1
+	SAH	MBOX_ID
+	CALL	VPMSG_CHK
+	CALL	NEWICM_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X83		;录音数量同步(3bytes)
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LAC	MSG_T
+	CALL	SEND_DAT
+	
+	LACL	0XFF
+	CALL	SEND_DAT
+	
+	LACL	0X82		;新旧来电同步(3bytes)
+	CALL	SEND_DAT
+	LACK	0	;???????????????
+	CALL	SEND_DAT
+	LACK	0
+	CALL	SET_TELGROUP
+	CALL	GET_TELT	;来电总数同步
+	CALL	SEND_DAT
+	
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	INITBEEP
+	LACK	0X005
+	CALL	STOR_VP
+LOCAL_PROFMT_KEYRELEASE:
+	BIT	INT_EVENT,1
+	BS	TB,LOCAL_PROFMT_KEYRELEASE
+	CALL	CLR_MSG	
+	BS	B1,LOCAL_PROX_RINGIN	;Key released then exit to idle
+;---------------------------------------
+LOCAL_PROFMT_STOP:
+	CALL	INIT_DAM_FUNC
+	CALL	CLR_FUNC
+	LACK	0
+	SAH	PRO_VAR
+	CALL	BLED_ON
+	;LACL	CMSG_INIT
+	;CALL	STOR_MSG
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X9E
+	CALL	SEND_DAT
+	LACL	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK	
+	CALL	BEEP
+	
+	RET
+;---------------------------------------
+LOCAL_PROFMT_VPSTOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROX_RINGIN:
+	CALL	INIT_DAM_FUNC
+	CALL	CLR_FUNC
+	LACK	0
+	SAH	PRO_VAR
+	CALL	BLED_ON
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X9E
+	CALL	SEND_DAT
+	LACL	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+
+	RET
+;-------------------------------------------------------------------------------
+;	Function : CURR_WEEK/CURR_GWEEK
+;	
+;	Generate a VP
+;-------------------------------------------------------------------------------
+CURR_WEEK:
+	LACL	0X8300
+	CALL	DAM_BIOSFUNC
+	
+	CALL	GET_LANGUAGE
+	BS	ACZ,CURR_GWEEK
+	LAC	RESP
+	ADHK	64
+	SAH	RESP
+CURR_GWEEK:
+	LAC	RESP
+	ADHK	28
+	ORL	0XFF00
+	CALL	STOR_VP
+	
+	RET
+;-------------------------------------------------------------------------------
+;	Function : CURR_HOUR
+;	
+;	Generate a VP
+;-------------------------------------------------------------------------------
+CURR_HOUR:
+	LACL	0X8200
+	CALL	DAM_BIOSFUNC
+	SAH	SYSTMP1
+
+	CALL	GET_LANGUAGE
+	BZ	ACZ,CURR_GHOUR	
+	
+	BIT	EVENT,11	;default=(EVENT.11=0) ==>24时制
+	BS	TB,CURR_HOUR_12
+	
+	LAC	SYSTMP1
+	CALL	ANNOUNCE_NUM
+	RET
+
+CURR_GHOUR:
+	LAC	SYSTMP1
+	BS	ACZ,CURR_GHOUR_NULL
+	SBHK	1
+	BS	ACZ,CURR_GHOUR_EIN
+	
+	LAC	SYSTMP1
+	CALL	ANNOUNCE_NUM
+	BS	B1,CURR_GHOUR_HUR
+CURR_GHOUR_NULL:	
+	LACK	102		;null(64+38)
+	ORL	0XFF00
+	CALL	STOR_VP
+	BS	B1,CURR_GHOUR_HUR
+CURR_GHOUR_EIN:
+	LACK	99		;ein(64+35)
+	ORL	0XFF00
+	CALL	STOR_VP	
+CURR_GHOUR_HUR:
+	LACK	110		;Uhr(64+46)
+	ORL	0XFF00
+	CALL	STOR_VP
+	
+	RET
+;---------------------------------------
+CURR_HOUR_12:
+	LAC	SYSTMP1
+	BS	ACZ,CURR_HOUR_12_0
+	SBHK	12
+	BS	ACZ,CURR_HOUR_12_0
+	BS	SGN,CURR_HOUR_12_AM
+	
+	CALL	ANNOUNCE_NUM	;13..23
+	
+	RET
+CURR_HOUR_12_0:			;0,12
+	LACK	12
+	CALL	ANNOUNCE_NUM
+
+	RET
+
+CURR_HOUR_12_AM:		;1..11
+
+	LAC	SYSTMP1
+	CALL	ANNOUNCE_NUM
+
+	RET
+;-------------------------------------------------------------------------------
+;	Function : MSG_MIN
+;	
+;	Generate a VP
+;-------------------------------------------------------------------------------
+CURR_MIN:
+	LACL	0X8100
+	CALL	DAM_BIOSFUNC
+	SAH	SYSTMP1
+	;lack	25	;??????????????????????????
+	;SAH	SYSTMP1
+
+	CALL	GET_LANGUAGE
+	BZ	ACZ,CURR_GMIN
+;---Language = English
+	LAC	SYSTMP1
+	CALL	ANNOUNCE_NUM
+
+	BIT	EVENT,11	;default=(EVENT.11=0) ==>24时制;12小时制要报AM/PM
+	BS	TB,CURR_MIN_12_CHK
+	
+	RET
+
+CURR_MIN_12_CHK:	
+	LACL	0X8200
+	CALL	DAM_BIOSFUNC
+	SAH	SYSTMP1
+
+	BS	ACZ,CURR_MIN_AM
+	SBHK	12
+	BZ	SGN,CURR_MIN_PM
+CURR_MIN_AM:
+
+	LACK	35	;AM
+	ORL	0XFF00
+	CALL	STOR_VP
+	RET
+CURR_MIN_PM:
+
+	LACK	36	;PM
+	ORL	0XFF00
+	CALL	STOR_VP
+	RET
+;-----------------------
+CURR_GMIN:		;---Language = German	
+	LAC	SYSTMP1
+	BS	ACZ,CURR_GMIN_RET
+	CALL	ANNOUNCE_NUM
+CURR_GMIN_RET:
+	RET	
+;-------------------------------------------------------------------------------
+.INCLUDE l_init.asm
+;.INCLUDE l_setweek.asm
+;-------------------------------------------------------------------------------	
+.END
+

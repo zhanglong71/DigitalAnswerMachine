@@ -1,0 +1,32 @@
+;-------------------------------------------------------------------------------
+.EXTERN	INIT_DAM_FUNC
+.EXTERN	INT_STOR_MSG
+
+.EXTERN	CLR_FUNC
+.EXTERN	CLR_MSG
+.EXTERN	CLR_TIMER
+
+.EXTERN	DAM_BIOSFUNC
+.EXTERN	DAM_STOP
+.EXTERN	DELAY
+
+.EXTERN	GC_CHK
+.EXTERN	GET_LANGUAGE
+.EXTERN	GET_MSG
+
+.EXTERN	LINE_START
+.EXTERN	LOCAL_PRO
+.EXTERN	MEMFUL_CHK
+.EXTERN	PUSH_FUNC
+
+.EXTERN	REQ_START
+.EXTERN	REC_START
+
+.EXTERN	RESET_WDT
+.EXTERN	SET_TIMER
+.EXTERN	STOR_MSG
+
+.EXTERN	VPMSG_CHK
+;-------------------------------------------------------------------------------
+.END
+

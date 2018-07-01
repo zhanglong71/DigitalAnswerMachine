@@ -1,0 +1,36 @@
+Dear Sirs,
+ 
+Pls. find the updated D20 BIOS of 8/23, 
+About the TEL mode data can't delete issue, I can't find any failure. pls. check again.
+For the room monitor application, you can set the cmd=0x5E0F ( Codec path: MIC -> AD0 & LIN -> AD0 & DA -> LOUT ).
+You had better to disable S/W ALC setting during room monitor mode or in whole line mode. Otherwise, if loop gain is too big, the howling is occurred.
+If you set Codec path via IN/OUT register directly, you can refer to below setting or refer to the demo program "RingMode.asm" -- DAA_MONITOR_ON: function.
+     LIPK 6
+     OUTL 0x8E85, ANALOG_POWER_REG
+     OUTL 0x0B,ANALOG_SWITCH_REG      
+     OUTL 0x00CB, ANALOG_MUTE_REG 
+ 
+ 
+Change Summary (compare to D20_070814V2.obj) ----> This version is only for Asset, the pubic version will keep using GPB0 & GPB1 as Interrupt pins.
+1. Remove cmd=0x5F42, 0x5F44 for old S/W ALC  (New S/W ALC don't support these two cmd again )
+2.  Replace External Interrupt Pin GPB0 & GPB1  by GPB6 
+ 
+Best Regards,
+CY Weng ÎÌÙ»â•
+
+
+;-------------------------------------------------------------------------
+Dear Sir,
+ 
+Pls. try below AGC gain setting for room monitor mode.
+ 
+LIPK 6
+ OUTL 0x8E85, ANALOG_POWER_REG
+ OUTL 0x0B,ANALOG_SWITCH_REG ;
+ OUTL 0x00CB, ANALOG_MUTE_REG 
+ OUTL  0x2F0, ANALOG_VOL_REG ; Bit4-0: SPK-DRV, Bit9-5: LOUT-DRV
+ OUTL 0xF50, AGC_GAIN_REG     ; Bit7-4: AD0-PGA, Bit11-8:MIC-PGA
+ 
+Best Regards,
+CY Weng ÎÌÙ»â•
+

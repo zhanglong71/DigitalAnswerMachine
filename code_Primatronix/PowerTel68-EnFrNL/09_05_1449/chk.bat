@@ -1,0 +1,7 @@
+:123
+
+CHKSUM MAIN_DEV.hex
+CHKSUM MAIN_DEVBIN.bin
+
+pause
+goto 123

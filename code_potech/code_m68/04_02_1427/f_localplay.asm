@@ -1,0 +1,488 @@
+.NOLIST
+.INCLUDE	include/REG_D22.inc
+.INCLUDE	include/MD22U.inc
+.INCLUDE	include/CONST.inc
+
+.GLOBAL	LOCAL_PROPLY
+;-------------------------------------------------------------------------------
+.EXTERN	GetOneConst
+;.EXTERN	ANNOUNCE_NUM
+
+.EXTERN	INIT_DAM_FUNC
+
+.EXTERN	BCVOX_INIT
+.EXTERN	BBBEEP
+.EXTERN	BBEEP
+.EXTERN	BEEP
+.EXTERN	BEEP_START
+.EXTERN	BEEP_STOP
+
+.EXTERN	CLR_FUNC
+.EXTERN	CLR_TIMER
+
+.EXTERN	DAA_SPK
+.EXTERN	DAA_REC
+.EXTERN	DAA_OFF
+.EXTERN	DAM_BIOSFUNC
+.EXTERN	DELAY
+.EXTERN	DGT_TAB
+
+.EXTERN	GC_CHK
+
+.EXTERN	LBEEP
+
+.EXTERN	LINE_START
+.EXTERN	LOCAL_PRO
+
+.EXTERN	OGM_SELECT
+
+.EXTERN	PUSH_FUNC
+
+;.EXTERN	REAL_DEL
+.EXTERN	REC_START
+
+.EXTERN	SET_PLYPSA
+.EXTERN	SET_TIMER
+.EXTERN	SEND_DAT
+;.EXTERN	SEND_MFULL
+.EXTERN	SEND_MSGNUM
+;.EXTERN	SEND_RECSTART
+.EXTERN	STOR_MSG
+.EXTERN	STOR_VP
+
+.EXTERN	VPMSG_CHK
+.EXTERN	VPMSG_DEL
+;---
+;.EXTERN	VP_AnswerOn
+;.EXTERN	VP_AnswerOff
+;.EXTERN	VP_Call
+;.EXTERN	VP_DefOGM
+;.EXTERN	VP_EndOf
+;.EXTERN	VP_Erased
+;.EXTERN	VP_MemoryIsFull
+;.EXTERN	VP_Message
+;.EXTERN	VP_Messages
+
+;.EXTERN	VP_NEW
+;.EXTERN	VP_No
+
+;.EXTERN	VP_YouHave
+;---
+.LIST
+;-------------------------------------------------------------------------------
+.ORG	ADDR_SECOND
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY:			;0Xyyy1
+	LAC	MSG
+	XORL	CVOL_DEC		;VOL-
+	BS	ACZ,LOCAL_PROX_VOLS
+	LAC	MSG
+	XORL	CVOL_INC		;VOL+
+	BS	ACZ,LOCAL_PROX_VOLA
+
+	LAC	MSG
+	XORL	CRING_IN		;ring
+	BS	ACZ,LOCAL_PROPLY_RING
+	;LAC	MSG
+	;XORL	CPARA_MINE
+	;BS	ACZ,LOCAL_PROPLY_RING
+		
+	LAC	MSG
+	XORL	CHOOK_OFF
+	BS	ACZ,LOCAL_PROPLY_PHONE	;摘机
+	LAC	MSG
+	XORL	CPHONE_ON
+	BS	ACZ,LOCAL_PROPLY_PHONE	;免提
+	
+	
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROPLY_0	;(0X0y01)playing
+	SBHK	1
+	BS	ACZ,LOCAL_PROPLY_1	;(0X0y11)pauseing
+
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY_PHONE:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+	
+	CALL	CLR_TIMER
+
+	LACK	10
+	CALL	SET_PLYPSA	;normal speed
+
+	CALL	REAL_DEL
+	CALL	GC_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACK	0X0
+	SAH	PRO_VAR
+
+	LAC	MSG
+	CALL	STOR_MSG
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY_0:	
+	LAC	MSG
+	XORL	CPLY_PAUSE		;pause
+	BS	ACZ,LOCAL_PROPLY_PAUSE
+	LAC	MSG
+	XORL	CMSG_PSA
+	BS	ACZ,LOCAL_PROPLY_PSA	;Fast play on
+
+	LAC	PRO_VAR
+	SFR	8
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROPLY_0_0	;(0X0001)playing Vop
+	SBHK	1
+	BS	ACZ,LOCAL_PROPLY_0_1	;(0X0101)playing Message
+	SBHK	1
+	BS	ACZ,LOCAL_PROPLY_0_2	;(0X0201)No message/end of message
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY_0_0:
+	LAC	MSG
+	XORL	CVP_STOP		;PLAY END
+	BS	ACZ,LOCAL_PROPLY_0_OVER
+	LAC	MSG
+	XORL	CMSG_STOP		;stop
+	BS	ACZ,LOCAL_PROPLY_STOP
+	
+	RET
+LOCAL_PROPLY_0_OVER:
+	LACL	0X0101
+	SAH	PRO_VAR
+	BS	B1,LOCAL_PROPLY_OVER
+;---------------------------------------
+LOCAL_PROPLY_0_1:	
+	LAC	MSG
+	XORL	CMSG_STOP		;stop
+	BS	ACZ,LOCAL_PROPLY_STOP
+;LOCAL_PROPLY_0_1_1:
+	LAC	MSG
+	XORL	CPLY_NEXT		;play next message
+	BS	ACZ,LOCAL_PROPLY_FFW
+;LOCAL_PROPLY_0_1_2:
+	LAC	MSG
+	XORL	CPLY_ERAS		;erase the playing message
+	BS	ACZ,LOCAL_PROPLY_ERASE
+;LOCAL_PROPLY_0_1_3:
+	LAC	MSG
+	XORL	CPLY_PREV		;repeat/previous message
+	BS	ACZ,LOCAL_PROPLY_REW
+;LOCAL_PROPLY_0_1_4:
+	LAC	MSG
+	XORL	CVP_STOP		;PLAY END
+	BS	ACZ,LOCAL_PROPLY_OVER
+
+	RET
+;---------------
+LOCAL_PROPLY_FFW:
+	BS	B1,LOCAL_PROPLY_OVER
+;---------------------------------------
+LOCAL_PROPLY_REW:
+
+	
+
+LOCAL_PROPLY_REWEXE:	
+	LAC	MSG_ID
+	SBHK	1
+	BS	ACZ,LOCAL_PROPLY_REWEXE_1	;第一个吗?
+
+	LAC	MSG_ID
+	SBHK	1
+	SAH	MSG_ID
+
+LOCAL_PROPLY_REWEXE_1:	
+	CALL	INIT_DAM_FUNC
+	LAC	PRO_VAR
+	ANDL	0XFF0F
+	SAH	PRO_VAR
+	
+	CALL	CLR_TIMER
+	
+	BIT	ANN_FG,12
+	BZ	TB,LOCAL_PROPLY_LOADVP
+	BS	B1,LOCAL_PROPLY_LOADNEWVP	
+;---------------------------------------
+LOCAL_PROPLY_PSA:
+	LAC	OGM_ID		;speed up 100%
+	CALL	SET_PLYPSA
+
+	RET
+;---------------------------------------
+
+;---------------------------------------
+LOCAL_PROPLY_PAUSE:
+	LAC	CONF
+	ANDL	0XF000
+	SBHL	0X2000
+	BS	ACZ,LOCAL_PROPLY_PAUSE0		;0X2000(message)
+	SBHL	0X9000
+	BS	ACZ,LOCAL_PROPLY_PAUSE0		;0XB000(voice prompt)
+	BS	B1,LOCAL_PROPLY_PAUSE1
+LOCAL_PROPLY_PAUSE0:
+
+	LAC	CONF
+	ORL	1<<CbPAUSE
+	CALL	DAM_BIOSFUNC
+	
+	;LACL	160
+	;CALL	PAUBEEP		;BEEP Prompt
+	
+	CALL	DAA_OFF
+	
+	LAC	PRO_VAR
+	ANDL	0XFF0F
+	ORK	0X010
+	SAH	PRO_VAR
+	
+	LACK	0
+	SAH	PRO_VAR1
+	LACL	1000
+	CALL	SET_TIMER
+
+	RET
+LOCAL_PROPLY_PAUSE1:		;若是BEEP,则循环再发
+	LACL	CPLY_PAUSE
+	CALL	STOR_MSG
+
+	RET
+
+LOCAL_PROX_VOLS:
+	LACL	CMSG_VOLS
+	CALL	STOR_MSG
+	
+	RET
+
+LOCAL_PROX_VOLA:
+	LACL	CMSG_VOLA
+	CALL	STOR_MSG
+	
+	RET
+;-----------------------------------------------------------
+LOCAL_PROPLY_ERASE:		;删除后放下一条
+	CALL	INIT_DAM_FUNC
+	
+	BIT	ANN_FG,12
+	BZ	TB,LOCAL_PROPLY_ERASE_RTOTAL
+;LOCAL_PROPLY_ERASE_RNEW:	;the MSG_ID is related to new messages
+	LAC	MSG_ID
+	CALL	SET_DELMARKNEW
+	BS	B1,LOCAL_PROPLY_ERASEDONE
+LOCAL_PROPLY_ERASE_RTOTAL:	;the MSG_ID is related to total messages
+	LAC	MSG_ID
+	CALL	SET_DELMARK
+LOCAL_PROPLY_ERASEDONE:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	LACK	0X005
+	CALL	STOR_VP
+
+	LACL	0X0101
+	SAH	PRO_VAR
+
+	RET
+;---------------------------------------
+LOCAL_PROPLY_OVER:
+	BIT	ANN_FG,12
+	BS	TB,LOCAL_PROPLY_OVERNEW
+
+	CALL	INIT_DAM_FUNC
+
+	LAC	MSG_ID
+	SBH	MSG_T
+	BZ	SGN,LOCAL_PROPLY_STOP
+
+	LAC	MSG_ID			;next message
+	ADHK	1
+	SAH	MSG_ID
+;-----------------------------
+LOCAL_PROPLY_LOADVP:
+	
+	;CALL	VP_Message
+	;LAC	MSG_ID
+	;CALL	ANNOUNCE_NUM
+
+	;CALL	MSG_WEEK
+	;CALL	MSG_HOUR
+	;CALL	MSG_MIN
+	;CALL	AM_PM
+
+	CALL	SEND_MSGID	;send MSG_ID
+	CALL	SEND_MSGATT	;sedn year-month-day-hour-minute
+
+	CALL	BEEP
+	LAC	MSG_ID
+	ORL	0XFE00
+	CALL	STOR_VP
+	
+	RET
+LOCAL_PROPLY_OVERNEW:
+	CALL	INIT_DAM_FUNC
+	
+	LAC	MSG_ID
+	SBH	MSG_N
+	BZ	SGN,LOCAL_PROPLY_STOP
+
+	LAC	MSG_ID			;next message
+	ADHK	1
+	SAH	MSG_ID
+LOCAL_PROPLY_LOADNEWVP:
+	
+	;CALL	VP_Message
+	;LAC	MSG_ID
+	;CALL	ANNOUNCE_NUM
+
+	;CALL	MSG_WEEKNEW
+	;CALL	MSG_HOURNEW
+	;CALL	MSG_MINNEW
+	;CALL	AM_PMNEW
+
+	CALL	SEND_MSGID	;send MSG_ID
+	CALL	SEND_MSGATTNEW	;sedn year-month-day-hour-minute
+	
+	CALL	BEEP
+	LAC	MSG_ID
+	ORL	0XFD00
+	CALL	STOR_VP
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY_STOP:		;全播放完毕或强行退出Play-Mode
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BBEEP
+	
+	LACK	0
+	SAH	MSG_ID
+	CALL	SEND_MSGID	;send MSG_ID(0 = End of message)
+	
+	CALL	CLR_TIMER
+	LACL	0X0201
+	SAH	PRO_VAR
+
+	CALL	REAL_DEL
+	CALL	GC_CHK
+
+	RET
+;---------------------------------------
+LOCAL_PROPLY_RING:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+	
+	CALL	CLR_TIMER
+	
+	LACL	0X0201
+	SAH	PRO_VAR
+
+	CALL	REAL_DEL
+	CALL	GC_CHK
+
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY_1:			;Pause
+	LAC	MSG
+	XORL	CMSG_PLY		;play again
+	BS	ACZ,LOCAL_PROPLY_1_PLAY
+;LOCAL_PROPLY_1_2:
+	LAC	MSG
+	XORL	CMSG_TMR		;TMR
+	BS	ACZ,LOCAL_PROPLY_TMR
+;LOCAL_PROPLY_1_3
+	LAC	MSG
+	XORL	CMSG_STOP		;stop
+	BS	ACZ,LOCAL_PROPLY_STOP
+	
+	RET
+LOCAL_PROPLY_TMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	SBHK	8
+	BZ	SGN,LOCAL_PROPLY_STOP
+	
+	
+	RET
+
+LOCAL_PROPLY_1_PLAY:
+	CALL	DAA_SPK
+	
+	LAC	PRO_VAR
+	ANDL	0XFF0F
+	SAH	PRO_VAR
+
+	CALL	CLR_TIMER
+
+	LAC	CONF
+	ANDL	~(1<<CbPAUSE)
+	CALL	DAM_BIOSFUNC
+
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROPLY_0_2:		;No/End_of message
+	LAC	MSG
+	XORL	CVP_STOP		;PLAY END
+	BS	ACZ,LOCAL_PROPLY_0_2_VPSTOP
+	LAC	MSG
+	XORL	CMSG_STOP		;stop
+	BS	ACZ,LOCAL_PROPLY_0_2_VPSTOP
+	
+	RET
+LOCAL_PROPLY_0_2_VPSTOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X001
+	CALL	STOR_VP
+
+	LACK	10
+	CALL	SET_PLYPSA	;normal speed
+
+	LACK	0X0
+	SAH	PRO_VAR
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	RET
+;-------------------------------------------------------------------------------
+;###############################################################################
+;	Function : PAUBEEP
+;	
+;	INPUT : ACCH = BEEP LENGTH
+;	Generate a warning beep
+;###############################################################################
+PAUBEEP:
+	PSH	CONF
+	NOP
+;---
+	SAH	SYSTMP1
+
+	CALL    BEEP_START
+	LACL	0X2000		;Fre1
+	CALL    DAM_BIOSFUNC
+	LACK	0		;Fre2
+	CALL    DAM_BIOSFUNC
+	LAC	SYSTMP1
+	CALL	DELAY
+	CALL    BEEP_STOP	;// beep stop
+;---	
+	POP	CONF
+	NOP
+	RET
+;-------------------------------------------------------------------------------
+.INCLUDE	block/l_plycomm.ASM
+.INCLUDE	block/l_plydel.ASM
+;-------------------------------------------------------------------------------
+.END
+	

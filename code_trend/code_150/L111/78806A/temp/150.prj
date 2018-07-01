@@ -1,0 +1,51 @@
+[Project ID]
+Signature=UE Proj: v.1
+[Open Files]
+Open File0=D:\MY\item\EMC\78806A\temp\ASCII.asm
+Open File Pos0=0
+Open File Line0=0
+Open File Window Pos0=0,1,-1,-1,-4,-30,0,0,694,435
+Open File1=D:\MY\item\EMC\78806A\temp\TEMP.ASM
+Open File Pos1=0
+Open File Line1=0
+Open File Window Pos1=0,1,-1,-1,-4,-30,22,29,716,464
+Open File2=D:\MY\item\EMC\78806A\temp\stcp.asm
+Open File Pos2=31969
+Open File Line2=31677
+活动文件索引=2
+Open File Window Pos2=2,3,-1,-1,-4,-30,44,58,738,493
+Open File3=D:\MY\item\EMC\78806A\temp\CID.asm
+Open File Pos3=7132
+Open File Line3=6863
+Open File Window Pos3=0,1,-1,-1,-4,-30,66,87,760,522
+Open File4=
+活动文件显示模式=3
+[工程信息]
+使用相对目录=1
+相对到工程文件=1
+工程开始=D7070A00020009000F003400190000004F
+包括子目录=1
+工程标记文件=
+工程字词文件=
+Filter=
+创建标记文件=0
+工作时间=3793
+[Files]
+0=VGA.asm
+1=main.inc
+2=math.inc
+3=STCP.INC
+4=string.inc
+5=system.inc
+6=ASCII.asm
+7=CID.asm
+8=initial.asm
+9=lcddrv.asm
+10=main.asm
+11=math.asm
+12=menu.asm
+13=SER_COM.asm
+14=stcp.asm
+15=string.asm
+16=test.asm
+17=timer.asm

@@ -1,0 +1,417 @@
+     1                     
+     2 00000               INITIAL:
+     3                   M 	MOV	_FSR,@0X70			; 3.5826MHz
+***     error A033:The macro is not defined.
+     4                     	DISI
+     5                     	WDTC
+     6                   M 	PAGEIO	0
+***     error A033:The macro is not defined.
+     7                   M 	BANK	0
+***     error A033:The macro is not defined.
+     8                     	
+     9                   M 	MOV	_RE,@0X01			; set lcd 1/8 duty 1/4 bias
+***     error A033:The macro is not defined.
+    10                   M 	MOV	_RE,@0X06			; set lcd display enable
+***     error A033:The macro is not defined.
+    11                     
+    12                   M 	CIDBANK	0
+***     error A033:The macro is not defined.
+    13                     	CALL	CLR_LCD_RAM
+    14                   M 	CIDBANK	1
+***     error A033:The macro is not defined.
+    15                     	CALL	CLR_LCD_RAM
+    16                   M 	CIDBANK	2
+***     error A033:The macro is not defined.
+    17                     	CALL	CLR_LCD_RAM
+    18                   M 	CIDBANK	3
+***     error A033:The macro is not defined.
+    19                     	CALL	CLR_LCD_RAM
+    20                   M 	BANK	0
+***     error A033:The macro is not defined.
+    21                     	CALL	CLR_REG
+    22                   M 	BANK	1
+***     error A033:The macro is not defined.
+    23                     	CALL	CLR_REG
+    24                   M 	BANK	2
+***     error A033:The macro is not defined.
+    25                     	CALL	CLR_REG
+    26                   M 	BANK	3
+***     error A033:The macro is not defined.
+    27                     	CALL	CLR_REG
+    28                   M 	BANK	0
+***     error A033:The macro is not defined.
+    29                     	
+    30                   M 	IOW	_IOC5,@0X0F
+***     error A033:The macro is not defined.
+    31                   M 	IOW	_IOC6,@0X00
+***     error A033:The macro is not defined.
+    32                   M 	IOW	_IOC8,@0X00
+***     error A033:The macro is not defined.
+    33                   M 	IOW	_IOC9,@0X00
+***     error A033:The macro is not defined.
+    34                     ;	
+    35                     	;IOW	_IOCA,@0XF0			; port7 as normal port, set p5,p6,p9 for lcd
+    36                   M 	IOW	_IOCA,@0XFA
+***     error A033:The macro is not defined.
+    37                   M 	SRAM	_RB,6
+***     error A033:The macro is not defined.
+    38                   M 	SRAM	_RB,7				; set p8 for lcd
+***     error A033:The macro is not defined.
+    39                     	
+    40                   M 	IOW	_IOC7,@0X18
+***     error A033:The macro is not defined.
+    41                   M 	MOV	_R7,@0XFF			; p7.5 = 1
+***     error A033:The macro is not defined.
+    42                     	
+    43                   M 	SRAM	_RE,3				; set /WURING enable
+***     error A033:The macro is not defined.
+    44                     	
+    45                   M 	PAGEIO	1
+***     error A033:The macro is not defined.
+    46                   M 	IOW	_IOCE,@0X0C
+***     error A033:The macro is not defined.
+    47                   M 	IOW	_IOCB,@0X80			; count1
+***     error A033:The macro is not defined.
+    48                   M 	IOW	_IOCC,@0XEF			; count2
+***     error A033:The macro is not defined.
+    49                   M 	PAGEIO	0
+***     error A033:The macro is not defined.
+    50                     	
+    51                     ; ---------- dtmf open -----------
+    52                   M 	SRAM	_PPSR,3				; open the PWDN to receive the dtmf data
+***     error A033:The macro is not defined.
+    53                   M 	CRAM	_RB,4
+***     error A033:The macro is not defined.
+    54                   M 	CRAM	_RB,5				; tone detection present time 5ms
+***     error A033:The macro is not defined.
+    55                     	
+    56                   M 	CRAM	_STATUS,5			; close the tone genarater1
+***     error A033:The macro is not defined.
+    57                   M 	CRAM	_STATUS,6			; close the tone genarater2
+***     error A033:The macro is not defined.
+    58                     
+    59                     ; ---------- fsk open ------------
+    60                   M 	SRAM	_FSR,3				; /FSKPWR = 1
+***     error A033:The macro is not defined.
+    61                     	
+    62                   M 	IOW	_IOCF,@0XB0			; DTMF,CONT2,CONT1  ENABLE. fsk disable
+***     error A033:The macro is not defined.
+    63                   M 	MOV	_ISR,@0
+***     error A033:The macro is not defined.
+    64                   M 	MOV	FSK_FG,@0
+***     error A033:The macro is not defined.
+    65                   M 	MOV	SYS_FG,@0
+***     error A033:The macro is not defined.
+    66                   M 	MOV	STAMP_FG,@0
+***     error A033:The macro is not defined.
+    67                     	
+    68                     	MOV	A,@2
+    69                     	CONTW
+    70                     
+    71                     ; ---------- INFO INIT ------------
+    72                   M 	BANK	1
+***     error A033:The macro is not defined.
+    73                   M 	MOV	R1_LCD_CONTRAST,@0X03		; LCD对比度3，
+***     error A033:The macro is not defined.
+    74                   M 	MOV	R1_CODE23,@0X0			; CODE=000
+***     error A033:The macro is not defined.
+    75                   M 	ANDA	R1_LCD_CONTRAST,@0X0F
+***     error A033:The macro is not defined.
+    76                     	CALL	LCD_CONTRAST_APPLY
+    77                   M 	BANK	0
+***     error A033:The macro is not defined.
+    78                   M 	MOV	LCALL12,@0XFF
+***     error A033:The macro is not defined.
+    79                   M 	MOV	LCALL34,@0XFF			; 区域码：无
+***     error A033:The macro is not defined.
+    80                   M 	MOV	LCALL5,@0XFF
+***     error A033:The macro is not defined.
+    81                     
+    82                     ; ---------- time init ------------
+    83                     	CLR	SEC_REG
+    84                     	CLR	MIN_REG
+    85                     	CLR	HOUR_REG
+    86                     	CLR	WEEK_REG
+    87                   M 	MOV	DAY_REG,@1
+***     error A033:The macro is not defined.
+    88                   M 	MOV	MONTH_REG,@1
+***     error A033:The macro is not defined.
+    89                   M 	MOV	YEAR_REG,@0
+***     error A033:The macro is not defined.
+    90                     
+    91                   M 	CALL	#BLANK_LCD
+***     error A033:The macro is not defined.
+    92                   M 	CRAM	SYS_FG,LANGUAGE
+***     error A033:The macro is not defined.
+    93                     	
+    94                   M 	CIDBANK	0
+***     error A033:The macro is not defined.
+    95                   M 	MOV	_RC,@LCD_CTRL
+***     error A033:The macro is not defined.
+    96                   M 	MOV	_RD,@0X80
+***     error A033:The macro is not defined.
+    97                   M 	PAGE	#VGA_STAMP
+***     error A033:The macro is not defined.
+    98                     	
+    99                     	CALL	CLR_STAMP
+   100                     	CALL	CLR_NUM1
+   101                     	CALL	CLR_NUM2
+   102                     	CALL	CLR_STR
+   103                     	/*
+   104                     	MOV	A,@STYLE_CENTER			; 居中显示
+   105                     	CALL	VGA_STR
+   106                     	MOV	A,@(WD_INITIAL)
+   107                     	CALL	VGA_STRING
+   108                     	MOV	A,@CH_END
+   109                     	CALL	VGA_STR
+   110                     	*/
+   111                   M 	PAGE	#($)
+***     error A033:The macro is not defined.
+   112                   M 	CALL	#VIEW_STR
+***     error A033:The macro is not defined.
+   113                     	
+   114                   M 	SRAM	STAMP_FG,STAMP_SLASH		; 日期之间的斜杠，固定亮。
+***     error A033:The macro is not defined.
+   115                   M 	SRAM	SYS_FG,STAMP
+***     error A033:The macro is not defined.
+   116                   M 	SRAM	SYS_FG,SYS_CLOCK
+***     error A033:The macro is not defined.
+   117                   M 	CRAM	SYS_FG,LOCK_TOPLINE
+***     error A033:The macro is not defined.
+   118                     	
+   119                     	ENI
+   120                   M 	MOV	TMR_DELAY,@250
+***     error A033:The macro is not defined.
+   121                     	CALL	WAIT_FLASH
+   122                     	
+   123                     	
+   124                   M 	BANK	1
+***     error A033:The macro is not defined.
+   125                     	RET
+   126                     
+   127                     CLR_LCD_RAM:
+   128                     	CLR	TEMP0
+   129                     CLR_LCD_RAM_LOOP:
+   130                     	MOV	_RC,TEMP0
+   131                     	CLR	_RD
+   132                     	INC	TEMP0
+   133                   M 	SUBA	TEMP0,@0XFF
+***     error A033:The macro is not defined.
+   134                   M 	JPNZ	CLR_LCD_RAM_LOOP
+***     error A033:The macro is not defined.
+   135                     	MOV	_RC,TEMP0
+   136                     	CLR	_RD
+   137                     	RET
+   138                     
+   139                     CLR_REG:
+   140                   M 	AND	_RSR,@0XC0
+***     error A033:The macro is not defined.
+   141                   M 	ADD	_RSR,@0X0F
+***     error A033:The macro is not defined.
+   142                     CLR_REG_LOOP:
+   143                     	INC	_RSR
+   144                     	CLR	_R0
+   145                   M 	ANDA	_RSR,@0X3F
+***     error A033:The macro is not defined.
+   146                     	SUB	A,@0X3F
+   147                   M 	JPNZ	CLR_REG_LOOP
+***     error A033:The macro is not defined.
+   148                     	RET
+   149                     
+   150                     BLANK_LCD:
+   151                   M 	MOV	TEMP0,@0
+***     error A033:The macro is not defined.
+   152                     BLANK_LCD_LOOP:
+   153                     	MOV	A,TEMP0
+   154                     	IOW	_IOCB
+   155                     	MOV	A,@0
+   156                     	IOW	_IOCC
+   157                     	INC	TEMP0
+   158                   M 	SUBA	TEMP0,@0X28
+***     error A033:The macro is not defined.
+   159                   M 	JPNZ	BLANK_LCD_LOOP1
+***     error A033:The macro is not defined.
+   160                   M 	MOV	TEMP0,@0X40
+***     error A033:The macro is not defined.
+   161                     BLANK_LCD_LOOP1:
+   162                   M 	SUBA	TEMP0,@0X68
+***     error A033:The macro is not defined.
+   163                   M 	JPNZ	BLANK_LCD_LOOP
+***     error A033:The macro is not defined.
+   164                     	
+   165                     	RET
+   166                     
+   167                     /*****************************
+   168                     LCD对比度
+   169                     *****************************/
+   170                     LCD_CONTRAST_APPLY:
+   171                     	
+   172                     	AND	A,@0X0F
+   173                     ;	ADD	A,@2				; OTP
+   174                     	ADD	A,@0XFF				; 仿真
+   175                     	MOV	TEMP0,A
+   176                   M 	CLRC
+***     error A033:The macro is not defined.
+   177                     	RLC	TEMP0
+   178                     	IOR	_IOCA
+   179                     	AND	A,@0XF1
+   180                     	ADD	A,TEMP0
+   181                     	IOW	_IOCA
+   182                     	
+   183                     	RET
+   184                     
+   185                     
+   186                     /*****************************
+   187                     等待FLASH初始化
+   188                     *****************************/
+   189                     WAIT_FLASH:
+   190                     	;CALL	#LCD_VIEW
+   191                     	
+   192                   M 	BANK	0
+***     error A033:The macro is not defined.
+   193                   M 	CIDBANK	1
+***     error A033:The macro is not defined.
+   194                     	
+   195                     	;MOV	TMR_NAME,@40			; 等待初始化20秒
+   196                   M 	MOV	TMR_NAME,@20
+***     error A033:The macro is not defined.
+   197                     WAIT_FLASH_LOOP:
+   198                     	MOV	A,SER_FLAG
+   199                   M 	JPNZ	WAIT_FLASH_OK
+***     error A033:The macro is not defined.
+   200                     	MOV	A,TMR_NAME
+   201                   M 	JPNZ	WAIT_FLASH_LOOP
+***     error A033:The macro is not defined.
+   202                     WAIT_FLASH_TIMEOUT:
+   203                   M 	PAGE	#VGA_STR
+***     error A033:The macro is not defined.
+   204                     	MOV	A,@(STYLE_CENTER)
+   205                     	CALL	VGA_STR
+   206                     	MOV	A,@WD_INITIAL
+   207                     	CALL	VGA_STRING
+   208                     	MOV	A,@CH_BLANK
+   209                     	CALL	VGA_STR
+   210                     	MOV	A,@CH_T
+   211                     	CALL	VGA_STR
+   212                     	MOV	A,@CH_I
+   213                     	CALL	VGA_STR
+   214                     	MOV	A,@CH_M
+   215                     	CALL	VGA_STR
+   216                     	MOV	A,@CH_E
+   217                     	CALL	VGA_STR
+   218                     	MOV	A,@CH_O
+   219                     	CALL	VGA_STR
+   220                     	MOV	A,@CH_U
+   221                     	CALL	VGA_STR
+   222                     	MOV	A,@CH_T
+   223                     	CALL	VGA_STR
+   224                     	MOV	A,@CH_END
+   225                     	CALL	VGA_STR
+   226                   M 	PAGE	#($)
+***     error A033:The macro is not defined.
+   227                   M 	CALL	#VIEW_STR
+***     error A033:The macro is not defined.
+   228                   M 	BANK	0
+***     error A033:The macro is not defined.
+   229                   M 	MOV	TMR_DELAY,@250
+***     error A033:The macro is not defined.
+   230                     	MOV	A,TMR_DELAY
+   231                   M 	JPNZ	$-2
+***     error A033:The macro is not defined.
+   232                     	JMP	WAIT_FLASH_RET
+   233                     WAIT_FLASH_OK:
+   234                     	CLR	SEC_REG
+   235                   M 	MOV	TMR_NAME,@4
+***     error A033:The macro is not defined.
+   236                     WAIT_FLASH_OK_LOOP:
+   237                   M 	CALL	#STCP_CHK
+***     error A033:The macro is not defined.
+   238                     	
+   239                   M 	PAGE	#(VGA_STR)
+***     error A033:The macro is not defined.
+   240                     	MOV	A,@STYLE_CENTER			; 居中显示
+   241                     	CALL	VGA_STR
+   242                     	MOV	A,@(WD_INITIAL)
+   243                     	CALL	VGA_STRING
+   244                     	MOV	A,@CH_END
+   245                     	CALL	VGA_STR
+   246                   M 	PAGE	#($)
+***     error A033:The macro is not defined.
+   247                     	
+   248                   M 	CALL	#VIEW_STR
+***     error A033:The macro is not defined.
+   249                     	
+   250                   M 	BANK	0
+***     error A033:The macro is not defined.
+   251                     	MOV	A,TMR_NAME
+   252                   M 	JPNZ	WAIT_FLASH_OK_LOOP
+***     error A033:The macro is not defined.
+   253                     WAIT_FLASH_RET:
+   254                     	RET
+   255                     
+   256                     /*
+   257                     WAIT_FLASH:
+   258                     	CALL	#LCD_VIEW
+   259                     	
+   260                     	CIDBANK	1
+   261                     	BANK	0
+   262                     	MOV	TMR_NAME,@4
+   263                     	JPB	SER_FLAG,7,WAIT_FLASH_OK
+   264                     	JPB	SER_FLAG,4,WAIT_FLASH_OK
+   265                     	MOV	_RC,@(TCP_ADDR+0)
+   266                     	JPB	_RD,7,WAIT_FLASH_OK
+   267                     	;JPB	SER_FLAG,7,WAIT_FLASH_OK
+   268                     	
+   269                     	MOV	A,TMR_DELAY
+   270                     	JPNZ	WAIT_FLASH
+   271                     	INC	BANK0_TEMP0
+   272                     	SUBA	BANK0_TEMP0,@10
+   273                     	JPZ	WAIT_FLASH_TIMEOUT		; 等待FLASH超时
+   274                     	CALL	#SEND_DESIRE
+   275                     	JPNZ	WAIT_FLASH_RET
+   276                     	MOV	A,@0X88
+   277                     	CALL	#STORE_SER
+   278                     	MOV	A,@0X88				; 初始化请求
+   279                     	CALL	#STORE_SER
+   280                     	MOV	A,@CH_END
+   281                     	CALL	#STORE_SER
+   282                     	CALL	#SER_BUF_CHK
+   283                     	MOV	TMR_DELAY,@250
+   284                     	JMP	WAIT_FLASH
+   285                     WAIT_FLASH_TIMEOUT:
+   286                     	PAGE	#VGA_STR
+   287                     	MOV	A,@(STYLE_CENTER)
+   288                     	CALL	VGA_STR
+   289                     	MOV	A,@WD_INITIAL
+   290                     	CALL	VGA_STRING
+   291                     	MOV	A,@CH_BLANK
+   292                     	CALL	VGA_STR
+   293                     	MOV	A,@CH_T
+   294                     	CALL	VGA_STR
+   295                     	MOV	A,@CH_I
+   296                     	CALL	VGA_STR
+   297                     	MOV	A,@CH_M
+   298                     	CALL	VGA_STR
+   299                     	MOV	A,@CH_E
+   300                     	CALL	VGA_STR
+   301                     	MOV	A,@CH_O
+   302                     	CALL	VGA_STR
+   303                     	MOV	A,@CH_U
+   304                     	CALL	VGA_STR
+   305                     	MOV	A,@CH_T
+   306                     	CALL	VGA_STR
+   307                     	MOV	A,@CH_END
+   308                     	CALL	VGA_STR
+   309                     	PAGE	#($)
+   310                     	JMP	WAIT_FLASH_RET
+   311                     WAIT_FLASH_OK:
+   312                     WAIT_FLASH_OK_LOOP:
+   313                     	CALL	#STCP_CHK
+   314                     	;CALL	#DEL_FINISHED
+   315                     	BANK	0
+   316                     	MOV	A,TMR_NAME
+   317                     	JPNZ	WAIT_FLASH_OK_LOOP
+   318                     WAIT_FLASH_RET:
+   319                     	RET
+   320                     */
+  96 Error(s), 0 Warning(s), 0 User Message(s)

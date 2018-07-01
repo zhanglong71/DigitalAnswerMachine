@@ -1,0 +1,342 @@
+;-------------------------------------------------------------------------------
+;	约定中断程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+INT_STOR_MSG:
+KINT_STOR_MSG:
+	MOV 	TEMP0,A
+;---	
+	BLOCK	0
+
+	MOV 	_RC,@MSG_QUEUE
+	MOV	A,_RD
+	AND 	A,@0X07
+	ADD 	A,@MSG_QUEUE_START
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+;---ADJUST msg_queue pointer
+	MOV 	_RC,@MSG_QUEUE
+	INCA 	_RD
+	AND 	A,@0X77
+	MOV 	_RD,A
+;---	
+	RET
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+KCLR_MSG:
+	DISI
+
+	BLOCK	0
+	MOV 	_RC,@MSG_QUEUE
+	CLR	_RD
+	
+	ENI
+	RET
+;-------------------------------------------------------------------------------
+STOR_MSG:
+KSTOR_MSG:
+	DISI
+;---
+	MOV 	TEMP0,A
+;---	
+	BLOCK	0
+
+	MOV 	_RC,@MSG_QUEUE
+	MOV	A,_RD
+	AND 	A,@0X07
+	ADD 	A,@MSG_QUEUE_START
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+;---ADJUST msg_queue pointer
+	MOV 	_RC,@MSG_QUEUE
+	INCA 	_RD
+	AND 	A,@0X77
+	MOV 	_RD,A
+;---	
+	ENI
+	RET
+
+;-------------------------------------------------------------------------------
+;	约定主程序用,回到BANK1
+;-------------------------------------------------------------------------------
+GET_MSG:
+KGET_MSG:
+	DISI
+
+	BANK	1	;because the B1_MSG in the bank	1
+	BLOCK	0
+;---
+	MOV 	_RC,@MSG_QUEUE
+	SWAPA 	_RD
+	AND 	A,@0X07
+	MOV 	TEMP0,A		;GET ADDRESS
+	MOV 	A,_RD
+	AND 	A,@0X07
+	SUB 	A,TEMP0
+	JPZ 	GET_MSG_EMPTY
+
+;---ADJUST msg_queue pointer	
+	MOV 	A,_RD
+	ADD 	A,@0X10
+	AND 	A,@0X77
+	MOV 	_RD,A
+	
+	MOV 	A,TEMP0		;GET DATA IN SPECIFIC ADDRESS
+	ADD 	A,@MSG_QUEUE_START
+	MOV 	_RC,A
+	MOV 	A,_RD
+	MOV 	TEMP0,A		;SAVE THE DATA
+GET_MSG_END:
+
+	MOV	A, TEMP0
+;---
+	ENI
+	RET
+GET_MSG_EMPTY:
+	CLR	TEMP0	
+	JMP	GET_MSG_END
+
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+PUSH_PRO:
+KPUSH_PRO:
+	MOV	TEMP0,A
+;---
+	BLOCK	0
+;-	
+	MOV	_RC,@PRO_STACK
+	INCA	_RD
+	AND	A,@0X07
+	MOV	_RD,A	;整理
+;-
+	ADD	A,@PRO_STACK
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+;---
+	RET
+
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+/*
+POP_PRO:
+KPOP_PRO:
+	BLOCK	0
+	
+	MOV	_RC,@PRO_STACK
+	MOV	A,_RD
+	JPZ	PRO_STACK_END
+	DEC	_RD
+	
+	MOV	A,_RD
+	JPZ	PRO_STACK_END
+
+	ADD	A,@PRO_STACK
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+PRO_STACK_END:
+
+	MOV	A,TEMP0
+
+	RET
+*/
+;-------------------------------------------------------------------------------
+;	约定主程序用,回到BANK1
+;-------------------------------------------------------------------------------
+GET_PRO:
+KGET_PRO:
+	BANK	1	;?????????????????????????
+	BLOCK	0
+	
+	MOV	_RC,@PRO_STACK
+	MOV	A,_RD
+	JPZ	GET_PRO_END
+	ADD	A,@PRO_STACK
+	MOV	_RC,A
+	MOV	A,_RD
+
+GET_PRO_END:
+	
+	RET
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+CLR_PRO_STACK:
+KCLR_PRO_STACK:
+	BLOCK	0
+	
+	MOV	_RC,@PRO_STACK
+	CLR	_RD
+
+	RET
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+CLR_TIMER:
+KCLR_TIMER:
+	CLRA
+SET_TIMER:
+KSET_TIMER:
+	MOV	TEMP0,A
+
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+
+	BANK	0
+	
+	MOV	A,TEMP0
+	MOV	B0_TMR_TIMER,A
+	MOV	B0_TMR_TIMER_BAK,A
+	
+	MOV	A,OLD_RAM
+	MOV	_R4,A
+
+	RET
+/*
+GET_TIMER:
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+
+	BANK	0
+
+	MOV	A,B0_TMR_TIMER_BAK
+	MOV	TEMP0,A
+	
+	MOV	A,OLD_RAM
+	MOV	_R4,A
+	
+	MOV	A,TEMP0
+	
+	RET
+*/
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+CLR_2TIMER:
+KCLR_2TIMER:
+	CLRA
+SET_2TIMER:
+KSET_2TIMER:
+	MOV	TEMP0,A
+
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+
+	BANK	2
+	
+	MOV	A,TEMP0
+	MOV	B2_TMR_TIMER,A
+	MOV	B2_TMR_TIMER_BAK,A
+	
+	MOV	A,OLD_RAM
+	MOV	_R4,A
+
+	RET
+
+;-------------------------------------------------------------------------------
+;	约定主程序用,不能影响到BANK
+;-------------------------------------------------------------------------------
+CLR_PTIMER:
+KCLR_PTIMER:
+	CLRA
+SET_PTIMER:
+KSET_PTIMER:
+	DISI
+	
+	MOV	TEMP0,A
+
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+
+	BANK	2
+	
+	MOV	A,TEMP0
+	MOV	B2_TMR_PLUSE,A
+	MOV	B2_TMR_PLUSE_BAK,A
+	
+	MOV	A,OLD_RAM		;POP _R4
+	MOV	_R4,A
+
+	RETI
+
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+;	CALC_WEEK
+;	input: B1_YEAR_REG/B1_MON_REG/B1_DAY_REG
+;-------------------------------------------------------------------------------
+CALC_WEEK:
+KCALC_WEEK:
+;---合法性检查
+	MOV	A,B1_MON_REG
+	LCALL	DAYINMONTHTABLE_0
+	MOV	TEMP0,A		;平年月份对应的日期
+	
+	MOV	A,B1_YEAR_REG
+	AND	A,@0X03
+	JPNZ	GET_WEEK_0
+	
+	MOV	A,B1_MON_REG
+	LCALL	DAYINMONTHTABLE_1
+	MOV	TEMP0,A		;闰年月份对应的日期
+GET_WEEK_0:
+	MOV	A,B1_DAY_REG
+	SUB	A,TEMP0
+	JPNC	GET_WEEK_FAIL	;一个不存在的年/月/日组合
+;-------------------合法日期	
+;---取闰年数
+	MOV	TEMP0,B1_YEAR_REG
+	RRC	TEMP0
+	RRC	TEMP0
+	MOV	A,TEMP0	
+	AND	A,@0X1F
+	MOV	TEMP0,A
+;---查月表
+	DECA	B1_MON_REG	;没有0月
+	LCALL	DATE_TAB
+	MOV	TEMP1,A
+;---具体日
+	MOV	A,B1_YEAR_REG	;年
+	ADD     A,TEMP1		;about 月
+	ADD	A,B1_DAY_REG	;日
+	ADD	A,@5		;2000年1月1日的(星期六)前一天
+	ADD	TEMP0,A		;闰年数
+;---修正--------
+	MOV	A,B1_YEAR_REG
+	AND	A,@0X03
+	JPNZ	GET_WEEK_2
+;---闰年
+;GET_WEEK_1:
+	MOV	A,B1_MON_REG
+	SUB	A,@2
+	JPC	GET_WEEK_3	;只有闰年的小于3月的日期不加1修正
+;---当前年份是(闰年)(月份大于2)或平年
+GET_WEEK_2:
+	INC	TEMP0
+;---取星期数(对7取余)
+GET_WEEK_3:
+	MOV	A,@7
+	SUB	A,TEMP0
+	JPNC	GET_WEEK_4	;小于7
+
+	MOV	A,@7
+	SUB	A,TEMP0
+	MOV	TEMP0,A
+	JMP	GET_WEEK_3
+GET_WEEK_4:
+	SETC
+	MOV	A,TEMP0
+;---
+	RET
+GET_WEEK_FAIL:		;非法日期
+
+	CLRC
+
+	RET
+
+;-------------------------------------------------------------------------------

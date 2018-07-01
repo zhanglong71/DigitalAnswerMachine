@@ -1,0 +1,652 @@
+.NOLIST
+.INCLUDE	include/REG_D22.inc
+.INCLUDE	include/MD22U.inc
+.INCLUDE	include/CONST.inc
+
+.GLOBAL	LOCAL_PROREC
+.GLOBAL	LOCAL_PROOGM
+;-------------------------------------------------------------------------------
+.EXTERN	GetOneConst
+;.EXTERN	ANNOUNCE_NUM
+
+.EXTERN	INIT_DAM_FUNC
+
+.EXTERN	BCVOX_INIT
+.EXTERN	BBBEEP
+.EXTERN	BBEEP
+.EXTERN	BEEP
+
+.EXTERN	CLR_FUNC
+.EXTERN	CLR_TIMER
+
+.EXTERN	DAA_SPK
+.EXTERN	DAA_REC
+.EXTERN	DAA_OFF
+.EXTERN	DAM_BIOSFUNC
+.EXTERN	DGT_TAB
+
+.EXTERN	GC_CHK
+
+.EXTERN	LBEEP
+
+.EXTERN	LINE_START
+.EXTERN	LOCAL_PRO
+
+.EXTERN	OGM_TEMP
+
+.EXTERN	PUSH_FUNC
+
+;.EXTERN	REAL_DEL
+.EXTERN	REC_START
+
+.EXTERN	SET_PLYPSA
+.EXTERN	SET_TIMER
+
+.EXTERN	SEND_DAT
+;.EXTERN	SEND_MFULL
+.EXTERN	SEND_MSGNUM
+;.EXTERN	SEND_RECSTART
+.EXTERN	STOR_MSG
+.EXTERN	STOR_VP
+
+.EXTERN	VPMSG_CHK
+.EXTERN	VPMSG_DEL
+
+;---
+
+;---
+.LIST
+;-------------------------------------------------------------------------------
+.ORG	ADDR_SECOND
+;-------------------------------------------------------------------------------
+LOCAL_PROREC:			;0Xyyy2 = record MEMO
+	LAC	MSG
+	XORL	CPARA_MINE
+	BS	ACZ,LOCAL_PROREC_PMINE
+	
+	LAC	MSG
+	XORL	CHOOK_OFF
+	BS	ACZ,LOCAL_PROREC_PHONE	;摘机
+	LAC	MSG
+	XORL	CPHONE_ON
+	BS	ACZ,LOCAL_PROREC_PHONE	;免提
+
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROREC0	;prompt
+	SBHK	1
+	BS	ACZ,LOCAL_PROREC1	;record
+	SBHK	1
+	BS	ACZ,LOCAL_PROREC2	;play back memo
+	
+	RET
+;---------------
+LOCAL_PROREC_PMINE:
+	LACL	CRING_IN
+	CALL	STOR_MSG	;当来铃一样的处理
+	
+	RET
+LOCAL_PROREC_PHONE:
+	LAC	MSG
+	CALL	STOR_MSG
+	
+	LACL	CRING_IN
+	SAH	MSG
+	
+	BS	B1,LOCAL_PROREC
+;---------------
+LOCAL_PROREC0:
+	LAC	MSG
+	XORL	CMSG_STOP		;MEMO key released worn and stop
+	BS	ACZ,LOCAL_PROWORN
+;LOCAL_PROREC0_1:
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PRO0_RECSTART	;end beep and start record
+;LOCAL_PROREC0_2:	
+	LAC	MSG
+	XORL	CRING_IN		;RING
+	BS	ACZ,LOCAL_PROREC0_RING
+	
+	RET
+;---------------
+LOCAL_PROWORN:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BBBEEP
+	
+	LACK	0X0
+	SAH	PRO_VAR
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	RET
+LOCAL_PROREC0_RING:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+	
+	LACK	0X0
+	SAH	PRO_VAR
+	
+	RET	
+LOCAL_PRO0_RECSTART:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_REC
+	
+	LACL	CMODE9|(1<<9)	;demand ALC-on
+	CALL	DAM_BIOSFUNC
+
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_RECSTART		;(tell MCU)record start
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	REC_START
+	LACL	1000
+	CALL	SET_TIMER
+	LACK	0
+	SAH	PRO_VAR1
+
+	LACK	0X012
+	SAH	PRO_VAR
+	
+	RET	
+LOCAL_PROREC1:
+	LAC	MSG
+	XORL	CMSG_STOP		;stop record
+	BS	ACZ,LOCAL_PROREC_STOP
+;LOCAL_PROREC1_1:
+	LAC	MSG
+	XORL	CREC_FULL		;timer
+	BS	ACZ,LOCAL_PROREC_MFUL
+;LOCAL_PROREC1_2:
+	LAC	MSG
+	XORL	CMSG_TMR		;timer
+	BS	ACZ,LOCAL_PROREC1_TMR
+;LOCAL_PROREC1_3:
+	LAC	MSG
+	XORL	CRING_IN		;RING
+	BS	ACZ,LOCAL_PROREC_RING
+;LOCAL_PROREC1_4:
+
+	RET
+;---------------
+LOCAL_PROREC1_TMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+
+	RET
+;---------------------------------------
+LOCAL_PROREC_MFUL:
+	CALL	SEND_MFULL	;Tell MCU memful
+LOCAL_PROREC_STOP:
+	LAC	PRO_VAR1
+	SBHK	2
+	BS	SGN,LOCAL_PRORECFAIL_STOP
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	
+	CALL	VPMSG_CHK
+	LACL	CMODE9|(1<<8)	;Disable setting old mark and setting ALC-off
+    	CALL    DAM_BIOSFUNC
+
+	LACK	0X22
+	SAH	PRO_VAR
+
+    	CALL	BEEP
+    	LAC	MSG_T
+	ORL	0XFE00
+	CALL	STOR_VP
+
+	RET
+LOCAL_PRORECFAIL_STOP:		;录音失败(非正常)退出
+	LAC	CONF
+	ORL	0X0800
+	CALL	DAM_BIOSFUNC
+	CALL	INIT_DAM_FUNC
+	
+	CALL	DAA_SPK
+	CALL	BBBEEP
+	
+	LACK	0
+	SAH	PRO_VAR
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	RET
+;---------------------------------------
+;---------------------------------------
+LOCAL_PROREC_RING:
+	LAC	PRO_VAR1
+	SBHK	3
+	BS	SGN,LOCAL_PRORECFAIL_RING
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+
+	LACL	CMODE9		;demand ALC-off
+	CALL	DAM_BIOSFUNC
+
+	LACK	0X0
+	SAH	PRO_VAR
+	
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	RET
+LOCAL_PRORECFAIL_RING:
+	LAC	CONF
+	ORL	0X0800
+	CALL	DAM_BIOSFUNC
+	CALL	INIT_DAM_FUNC
+	
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+	
+	LACK	0
+	SAH	PRO_VAR
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+;---------------------------------------
+
+LOCAL_PROREC2:			;timer over|full了,等待松手
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROREC2_VPSTOP
+;LOCAL_PROREC2_1:
+	LAC	MSG
+	XORL	CMSG_STOP
+	BS	ACZ,LOCAL_PROREC2_VPSTOP	;
+;LOCAL_PROREC2_2:
+	LAC	MSG
+	XORL	CPLY_ERAS		;ERASE
+	BS	ACZ,LOCAL_PROREC2_ERASE
+;LOCAL_PROREC2_3:	
+	LAC	MSG
+	XORL	CRING_IN		;RING
+	BS	ACZ,LOCAL_PROREC2_STOP
+;LOCAL_PROREC2_4:
+	LAC	MSG
+	XORL	CVOL_DEC		;VOL-
+	BS	ACZ,LOCAL_PROX_VOLS
+	LAC	MSG
+	XORL	CVOL_INC		;VOL+
+	BS	ACZ,LOCAL_PROX_VOLA
+
+	RET
+;---------------------------------------
+LOCAL_PROREC2_ERASE:
+	CALL	INIT_DAM_FUNC
+	LAC	MSG_T
+	CALL	SET_DELMARK
+	CALL	REAL_DEL
+	CALL	GC_CHK
+	
+	CALL	BBEEP
+	LACK	0X0
+	SAH	PRO_VAR
+
+	LACL	CMODE9		;Enable setting old mark and ALC-off
+	CALL	DAM_BIOSFUNC
+	
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+;---------------------------------------
+LOCAL_PROREC2_VPSTOP:		;end play back
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+
+	LACL	CMODE9		;Enable setting old mark and ALC-off
+    	CALL    DAM_BIOSFUNC
+    		
+	LACK	0X0
+	SAH	PRO_VAR
+
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	RET
+;---------------
+LOCAL_PROREC2_STOP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+
+	LACL	CMODE9		;Enable setting old mark and ALC-off
+    	CALL    DAM_BIOSFUNC
+ 
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!   		
+	LACK	0X0
+	SAH	PRO_VAR
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROX_VOLS:
+	LACL	CMSG_VOLS
+	CALL	STOR_MSG
+	
+	RET
+
+LOCAL_PROX_VOLA:
+	LACL	CMSG_VOLA
+	CALL	STOR_MSG
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROOGM:				;0Xyyy3
+	LAC	MSG
+	XORL	CPARA_MINE
+	BS	ACZ,LOCAL_PROOGM_PMINE
+	
+	LAC	MSG
+	XORL	CHOOK_OFF
+	BS	ACZ,LOCAL_PROOGM_PHONE	;摘机
+	LAC	MSG
+	XORL	CPHONE_ON
+	BS	ACZ,LOCAL_PROOGM_PHONE	;免提
+
+	
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PROOGM_PLYVOP		;0 - VOP
+	SBHK	1
+	BS	ACZ,LOCAL_PROOGM_RECOGM		;1 - record OGM
+	SBHK	1
+	BS	ACZ,LOCAL_PROOGM_PLYOGM		;2 - play OGM
+
+	RET
+;---------------
+LOCAL_PROOGM_PMINE:
+	LACL	CRING_IN
+	CALL	STOR_MSG	;当来铃一样的处理
+	
+	RET
+LOCAL_PROOGM_PHONE:
+	LAC	MSG
+	CALL	STOR_MSG
+	
+	LACL	CRING_IN
+	SAH	MSG
+	BS	B1,LOCAL_PROOGM
+;---------------------------------------
+LOCAL_PROOGM_PLYVOP:
+	LAC	MSG
+	XORL	CMSG_STOP
+	BS	ACZ,LOCAL_PROOGM_PLYVOP_STOP	;REC stop
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROOGM_PLYVOP_RING	;RING
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROOGM_RECSTART	;end beep and start record
+	
+	RET
+;---------------
+LOCAL_PROOGM_PLYVOP_STOP:
+
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+	
+	LACK	0X0023
+	SAH	PRO_VAR		;退出录制OGM,进入播放OGM
+
+	CALL	CLR_TIMER
+
+	RET
+LOCAL_PROOGM_PLYVOP_RING:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+	
+	LACK	0X0
+	SAH	PRO_VAR
+	
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	RET
+;--------------------------------------
+LOCAL_PROOGM_RECSTART:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_REC
+	LACK	0X0013
+	SAH	PRO_VAR
+LOCAL_PROOGM_RECSTART_1:
+	CALL	OGM_TEMP
+	BS	ACZ,LOCAL_PROOGM_RECSTART_2
+;---delete the old OGM fisrt------------
+	LAC	MSG_ID
+	CALL	VPMSG_DEL
+	CALL	GC_CHK
+	BS	B1,LOCAL_PROOGM_RECSTART_1
+LOCAL_PROOGM_RECSTART_2:
+;---	
+	LACL	CMODE9|(1<<9)	;demand ALC-on
+	CALL	DAM_BIOSFUNC
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_RECSTART		;record start
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	REC_START
+	LACK	0
+	SAH	PRO_VAR1
+	LACL	1000
+	CALL	SET_TIMER
+
+	RET
+;---------------------------------------
+LOCAL_PROOGM_RECOGM:			;record OGM
+	LAC	MSG
+	XORL	CMSG_STOP		;OGM key released on/off stop record
+	BS	ACZ,LOCAL_PROOGM_RECOGM_STOP
+	LAC	MSG
+	XORL	CRING_IN		;RING
+	BS	ACZ,LOCAL_PROOGM_RECOGM_RING
+LOCAL_PROOGM_REC1_1:
+	LAC	MSG
+	XORL	CMSG_TMR		;timer
+	BS	ACZ,LOCAL_PROOGM_RECTMR
+LOCAL_PROOGM_REC1_2:
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,LOCAL_PROOGM_RECOGMSUCC_STOP	;end beep and start PLAY OGM
+LOCAL_PROOGM_REC1_3:
+	LAC	MSG
+	XORL	CREC_FULL		;FULL
+	BS	ACZ,LOCAL_PROOGM_RECTMR_FULL	;end beep and start PLAY OGM
+
+	RET
+LOCAL_PROOGM_RECOGM_RING:
+	LAC	PRO_VAR1
+	SBHK	2
+	BZ	SGN,LOCAL_PROOGM_RECOGM_RING1
+	LAC	CONF
+	ORL	1<<11
+	CALL	DAM_BIOSFUNC
+LOCAL_PROOGM_RECOGM_RING1:	
+	CALL	INIT_DAM_FUNC
+	LACK	0X005
+	CALL	STOR_VP
+	
+	LACL	CMODE9		;demand ALC-off
+	CALL	DAM_BIOSFUNC
+
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET	
+LOCAL_PROOGM_RECTMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	;SBHK	60
+	;BZ	SGN,LOCAL_PROOGM_RECTMR_1_TMROVER
+	
+	RET
+;---------------------------------------
+LOCAL_PROOGM_RECTMR_FULL:
+	CALL	SEND_MFULL
+;LOCAL_PROOGM_RECTMR_1_TMROVER:		;计时或FULL
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+	LACK	0X03F
+	CALL	STOR_VP
+
+	LACL	CMODE9		;demand ALC-off
+	CALL	DAM_BIOSFUNC
+
+	CALL	CLR_TIMER
+
+	RET
+
+LOCAL_PROOGM_RECTMR_2_VPSTOP:
+	BS	B1,LOCAL_PROOGM_RECOGMSUCC_STOP
+;---------------------------------------
+LOCAL_PROOGM_RECOGM_STOP:
+	LAC	PRO_VAR1
+	SBHK	3
+	BZ	SGN,LOCAL_PROOGM_RECOGMSUCC_STOP
+
+;LOCAL_PROOGM_RECOGMFAIL_STOP:	
+	LAC	CONF
+	ORL	0X0800
+	CALL	DAM_BIOSFUNC
+LOCAL_PROOGM_RECOGMSUCC_STOP:	;准备播放OGM
+
+	CALL	INIT_DAM_FUNC
+	
+	CALL	DAA_SPK
+	LACK	0X0023
+	SAH	PRO_VAR		;退出录制OGM,进入播放OGM
+
+	LACL	CMODE9		;demand ALC-off
+	CALL	DAM_BIOSFUNC
+
+	CALL	OGM_TEMP
+	
+	CALL	CLR_TIMER
+
+	CALL	BEEP
+
+	LAC	MSG_ID
+	ORL	0XFE00
+	CALL	STOR_VP
+
+	CALL	OGM_TEMP
+	BZ	ACZ,MAIN_PRO0_PLAY_OGM1
+
+	CALL	INIT_DAM_FUNC
+	CALL	BEEP
+	
+MAIN_PRO0_PLAY_OGM1:
+
+	RET
+;---------------------------------------
+LOCAL_PROOGM_PLYOGM:		;PLAY 
+	LAC	MSG
+	XORL	CMSG_STOP		;stop record(手动停止)
+	BS	ACZ,LOCAL_PROOGM_PLYOGM_STOP
+	LAC	MSG
+	XORL	CRING_IN		;RING
+	BS	ACZ,LOCAL_PROOGM_PLYOGM_RING
+;LOCAL_PROOGM_PLYOGM0_1:	
+	LAC	MSG
+	XORL	CVP_STOP		;stop record(播完停止)
+	BS	ACZ,LOCAL_PROOGM_PLYOGM_STOP
+;LOCAL_PROOGM_PLYOGM0_2:	
+	LAC	MSG
+	XORL	CPLY_ERAS
+	BS	ACZ,LOCAL_PROOGM_PLYOGM_REASE
+;LOCAL_PROOGM_PLYOGM0_3:
+	LAC	MSG
+	XORL	CVOL_DEC		;VOL-
+	BS	ACZ,LOCAL_PROX_VOLS
+	LAC	MSG
+	XORL	CVOL_INC		;VOL+
+	BS	ACZ,LOCAL_PROX_VOLA
+;LOCAL_PROOGM_PLYOGM0_4:
+
+	RET
+;---------------
+LOCAL_PROOGM_PLYOGM_RING:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+LOCAL_PROOGM_PLYOGM_STOP:	;播放完后发BEEP声
+	CALL	INIT_DAM_FUNC
+	CALL	BEEP
+	
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+LOCAL_PROOGM_PLYOGM_REASE:
+	CALL	INIT_DAM_FUNC
+	CALL	BEEP
+	
+	CALL	OGM_TEMP
+	LAC	MSG_ID
+	CALL	VPMSG_DEL
+	CALL	GC_CHK
+	CALL	VPMSG_CHK	;check mfull
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	LACK	0
+	SAH	PRO_VAR
+
+	RET
+
+;-------------------------------------------------------------------------------
+.INCLUDE	block/l_plycomm.ASM
+.INCLUDE	block/l_plydel.ASM
+.INCLUDE	block/l_reccomm.ASM
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+.END
+	

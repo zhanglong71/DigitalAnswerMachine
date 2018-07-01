@@ -1,0 +1,1205 @@
+ORG	(3<<10)		;the 3rd page
+VPQUE:
+DSP:
+;-------------------------------------------------------------------------------
+;  - 事件识别标志定义如下: 0 - reserved(Don`t use this status)
+;	input : TEMP0 = 
+;	  	  		  1 - delay	- (参数TEMP1对应时间长度8ms/unit,)
+;	  	  		  2 - play TONE	- (参数TEMP1对应时间长度1/16s/unit,TEMP2对应频率8/unit,TEMP3reserved) - 单音频
+;	  	  		  3 - play DTMF	- (参数TEMP1对应时间长度8ms/unit,TEMP2对应频率,TEMP3reserved) 	 - 双音频	  		  
+;	  			  4 - play VOP	- (参数TEMP1对应VOP index,TEMP2,TEMP3 reserved)
+;	  			  5 - play-new message	- (参数TEMP1对应message )
+;	  			  6 - play-all message	- (参数TEMP1对应message )
+;	  			  7 - play-old message	- reserved	  
+;	output: SETC
+;-------------------------------------------------------------------------------
+VP_START:
+;---
+	BANK	1
+
+	MOV	BANK1_TEMP0,TEMP0
+	MOV	BANK1_TEMP1,TEMP1
+	MOV	BANK1_TEMP2,TEMP2
+	MOV	BANK1_TEMP3,TEMP3
+	MOV	BANK1_TEMP4,TEMP4
+	MOV	BANK1_TEMP5,TEMP5
+	
+	LCALL	DAM_STOP
+;---
+	;BANK	1
+	
+	MOV	TEMP0,BANK1_TEMP0
+	MOV	TEMP1,BANK1_TEMP1
+	MOV	TEMP2,BANK1_TEMP2
+	MOV	TEMP3,BANK1_TEMP3
+	MOV	TEMP4,BANK1_TEMP4
+	MOV	TEMP5,BANK1_TEMP5
+;---	
+	MOV	A,TEMP0
+	AND	A,@0X7
+	MTBL
+	JMP	VP_START_END	;0 - reserved
+	JMP	VP_START_DELAY	;1 - Delay
+	JMP	VP_START_STSF	;2 - Generate Tone(STSF)
+	JMP	VP_START_DTMF	;3 - Generate Tone(DTMF)
+	JMP	VP_START_VOP	;4 - Play VOP
+	JMP	VP_START_PLYN	;5 - Play new message
+	JMP	VP_START_PLYA	;6 - Play all message
+	JMP	VP_START_PLYO	;7 - Play old message(reserved)
+	ENDT
+;-----------------------------------------------------------
+VP_START_DELAY:			;
+	BANK	2
+	MOV	B2_TMR_BEEP,TEMP1	;
+	
+	JMP	VP_START_STSF_DONE
+;-----------------------------------------------------------
+VP_START_STSF:
+	BANK	2
+	MOV	A,TEMP2
+	;SUB	A,@10
+	JPZ	VP_START_DELAY		;Less than 10
+	
+	MOV	B2_TMR_BEEP,TEMP1	;
+;---
+	MOV	TEMP0,@CTONE_GAIN
+	MOV	TEMP1,@0X48
+;---tone-1 frequency
+	RLC	TEMP2
+	RLC	TEMP2
+	RLCA	TEMP2
+	MOV	TEMP3,A
+	CLR	TEMP2
+;---tone-2 frequency
+	CLR	TEMP4
+	CLR	TEMP5
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND6B_COMMAND
+	PAGE	#($)
+;!!!!!!!!!!!!!!!
+VP_START_STSF_DONE:	
+	BS	EVENT,5		;BEEP
+	JMP	VP_START_END
+;-----------------------------------------------------------
+VP_START_DTMF:			;dial
+	BS	EVENT,3
+	RET	
+;-----------------------------------------------------------
+VP_START_VOP:
+	MOV	TEMP0,TEMP1
+	MOV	TEMP1,@0XB0
+	LCALL	STOR_COMMAND
+
+	BS	EVENT,6
+	JMP	VP_START_END
+;-----------------------------------------------------------
+VP_START_PLYN:
+	MOV	TEMP0,TEMP1
+	MOV	TEMP1,@0X24
+	LCALL	STOR_COMMAND
+	BS	EVENT,6
+	JMP	VP_START_END
+;-----------------------------------------------------------
+VP_START_PLYA:
+	MOV	TEMP0,TEMP1
+	MOV	TEMP1,@0X20
+	LCALL	STOR_COMMAND
+	BS	EVENT,6
+	JMP	VP_START_END
+;-----------------------------------------------------------
+VP_START_PLYO:			;reserved
+VP_START_END:
+	SETC	;!!!set C 
+	
+	RET
+;-------------------------------------------------------------------------------
+;	VOP_STOR_VP
+;	input : ACC - the VOP index
+;	
+;-------------------------------------------------------------------------------
+VOP_STOR_VP:
+	MOV	TEMP1,A
+	MOV	TEMP0,@ID_VOP		;Announce one
+
+	;JMP	STOR_VP
+;-------------------------------------------------------------------------------
+;	STOR TONE DATA TO THE TAIL OF TONE-QUEUE
+;	INPUT : TEMP0 - VP identify
+;		TEMP1 - 
+;		TEMP2
+;		TEMP3
+;
+;	OUTPUT: NO
+;	No temp RAM changed
+;-------------------------------------------------------------------------------
+STOR_VP:
+;---
+	BLOCK	1
+	;BANK	1
+	
+	MOV	_RC,@TONE_QUEUE_TAIL
+	MOV	TEMP4,_RD
+	RLC	TEMP4
+	RLC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@0XFC		;!!!process 4 bytes
+	ADD 	A,@CTONE_QUEUE_START
+
+	MOV 	_RC,A
+
+	MOV 	A,TEMP0
+	MOV 	_RD,A
+	INC	_RC
+	
+	MOV 	A,TEMP1
+	MOV 	_RD,A
+	INC	_RC
+
+	MOV 	A,TEMP2
+	MOV 	_RD,A
+	INC	_RC
+
+	MOV 	A,TEMP3
+	MOV 	_RD,A
+	INC	_RC
+;---整理tone_queue	
+	MOV 	_RC,@TONE_QUEUE_TAIL
+	INCA 	_RD
+	AND 	A,@0XF
+	MOV 	_RD,A
+;---
+	RET
+;-------------------------------------------------------------------------------
+;	BEEP/LBEEP/BBEEP
+;-------------------------------------------------------------------------------	
+BEEP:	
+	MOV	TEMP0,@ID_BEEP		;id
+	MOV	TEMP1,@0X10		;len
+	MOV	TEMP2,@(0X20>>3)	;frequency
+
+	JMP	STOR_VP
+	
+LBEEP:
+	MOV	TEMP0,@ID_BEEP
+	MOV	TEMP1,@0X40
+	MOV	TEMP2,@(0X20>>3)
+
+	JMP	STOR_VP
+	
+BBEEP:	
+	MOV	TEMP0,@ID_BEEP
+	MOV	TEMP1,@0X10
+	MOV	TEMP2,@(0X20>>3)
+	CALL	STOR_VP
+	
+	MOV	TEMP0,@ID_BEEP
+	MOV	TEMP1,@0X05
+	MOV	TEMP2,@0
+	CALL	STOR_VP
+	
+	MOV	TEMP0,@ID_BEEP
+	MOV	TEMP1,@0X10
+	MOV	TEMP2,@(0X20>>3)
+	CALL	STOR_VP
+	
+	RET
+;-------------------------------------------------------------------------------
+;	GET TONE DATA FROM HEAD OF TONE-QUEUE
+;	INPUT : NO
+;	OUTPUT: C=0/1 ==> TONE/no
+;		TEMP0,TEMP1,TEMP2,TEMP3,TONE_QUEUE_HEAD相当于指向4byte长度类型的指针
+;-------------------------------------------------------------------------------
+GET_VP:
+
+	BLOCK	1
+	;BANK	1
+;---
+	MOV	_RC,@TONE_QUEUE_HEAD
+	MOV	TEMP0,_RD
+	MOV	_RC,@TONE_QUEUE_TAIL
+	MOV	A,_RD
+	SUB 	A,TEMP0
+	JPZ	GET_VP_EMPTY
+;---整理tone_queue
+	MOV 	_RC,@TONE_QUEUE_HEAD
+	MOV 	A,_RD
+	MOV 	TEMP0,A
+	ADD 	A,@0X01
+	AND 	A,@0XF
+	MOV 	_RD,A
+
+	RLC	TEMP0		;GET DATA IN SPECIFIC ADDRESS
+	RLC	TEMP0
+	MOV	A,TEMP0
+	AND	A,@0XFC		;!!!process 4 bytes
+	ADD 	A,@CTONE_QUEUE_START
+	MOV 	_RC,A
+	MOV 	A,_RD
+	MOV 	TEMP0,A		;SAVE THE DATA
+	INC	_RC
+	
+	MOV 	A,_RD
+	MOV 	TEMP1,A		;SAVE THE DATA
+	INC	_RC
+	
+	MOV 	A,_RD
+	MOV 	TEMP2,A		;SAVE THE DATA
+	INC	_RC
+	
+	MOV 	A,_RD
+	MOV 	TEMP3,A		;SAVE THE DATA
+	INC	_RC
+	
+	CLRC
+GET_VP_END:
+;---
+	RET
+GET_VP_EMPTY:
+	SETC
+	JMP	GET_VP_END
+;-------------------------------------------------------------------------------
+;	DAM_BIOS的软中断程序:record/play/beep/line/VoicePrompt/Spkphone
+;-------------------------------------------------------------------------------
+INT_BIOS:
+	BLOCK	1
+	
+	;JPNB	EVENT,0,INT_BIOS_END	;No need call DAM_BIOS ?
+	
+	JPB	EVENT,7,INT_BIOS_REC	;RECORD
+	JPB	EVENT,6,INT_BIOS_PLAY	;PLAY
+	JPB	EVENT,5,INT_BIOS_END	;BEEP不作处理
+	JPB	EVENT,4,INT_BIOS_LINE	;LINE
+	JPB	EVENT,3,INT_BIOS_END	;Spkphone
+
+	CALL	GET_VP
+	JPNC	VP_START
+
+	RET
+;---------------------------------------
+INT_BIOS_LINE:				;line mode
+	PAGE	#(IIC)
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)	
+	
+	JPB	_P8,4,INT_BIOS_RESP	;at answer/speaker mode
+	JPNB	_P7,4,INT_BIOS_END	;HS OFF-HOOK
+;---idle	
+	MOV	A,TEMP1		;Check CS/MS/DS
+	AND	A,@0XF0
+	JPNZ	INT_BIOS_LINE_CHKCID
+	
+	MOV	A,TEMP0		;Check dtmf
+	AND	A,@0X0F
+	JPZ	INT_BIOS_END
+;---DTMF detected
+INT_BIOS_LINE_CHKCID:
+	LCALL	CidRawData
+	JPNC	INT_BIOS_END
+	AND	A,@0X03
+	MTBL
+	JMP	INT_BIOS_END		;No Cid
+	JMP	INT_BIOS_FSKCID		;Fsk
+	JMP	INT_BIOS_DTMFCID	;Dtmf
+	JMP	INT_BIOS_END		;reserved
+	ENDT
+INT_BIOS_FSKCID:
+	LCALL	FSK_DECODE
+	JMP	INT_BIOS_STORCID
+INT_BIOS_DTMFCID:
+	LCALL	DTMF_DECODE
+	;JMP	INT_BIOS_STORCID
+INT_BIOS_STORCID:
+	;BANK	1
+	;MOV	B1_CID_TYPE,A		
+	
+	MOV	A,@CMSG_CID		;Tell the system that the Cooked-CID need display and stor into flash
+	LCALL	STOR_MSG
+	JMP	INIT_DAM_FUNC
+;---------------------------------------
+INT_BIOS_REC:				;record mode
+	PAGE	#(IIC)
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	JPNB	TEMP0,7,INT_BIOS_RESP	;RESPOND,7
+	
+	MOV	A,@CREC_FULL		;Generate memfull消息
+	LCALL	STOR_MSG
+	JMP	INT_BIOS_RESP
+;---------------------------------------
+INT_BIOS_PLAY:				;play(voice prompt) mode
+	PAGE	#(IIC)
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	JPNB	TEMP0,6,INT_BIOS_RESP	;RESPOND,6
+
+	MOV	A,@CSEG_END
+	LCALL	STOR_MSG		;产生结束消息
+	JMP	INT_BIOS_RESP
+
+;---------------------------------------
+;*********
+INT_BIOS_RESP:
+	JPNB	_P8,4,INT_BIOS_END	;Not at answer/speaker mode
+	JPNB	_P7,4,INT_BIOS_END	;HS OFF-HOOK
+	JPB	EVENT,6,INT_BIOS_RESP_BTONEDTMF	;play mode,no check VOX/CTONE
+;*********
+;---------
+INT_BIOS_RESP_VOX:			;for record/line mode 
+	PAGE	#(GET_RESPOND)
+	CALL	GET_RESPOND
+	LCALL	VOX_CHK
+	JPNC	INT_BIOS_RESP_VOX_END
+	MOV	A,@CMSG_VOX
+	LCALL	STOR_MSG
+INT_BIOS_RESP_VOX_END:	
+;---------
+;---------
+INT_BIOS_RESP_CTONE:			;for record/line mode 
+	PAGE	#(GET_RESPOND)
+	CALL	GET_RESPOND
+	LCALL	CTONE_CHK
+	JPNC	INT_BIOS_RESP_CTONE_END
+	MOV	A,@CMSG_CTONE
+	LCALL	STOR_MSG
+INT_BIOS_RESP_CTONE_END:
+;---------
+;---------
+INT_BIOS_RESP_BTONEDTMF:
+	
+;---------
+;---------
+INT_BIOS_RESP_BTONE:			;for record/play/line/voice_prompt mode 
+	PAGE	#(GET_RESPOND)
+	CALL	GET_RESPOND
+	LCALL	BTONE_CHK
+	JPNC	INT_BIOS_RESP_BTONE_END
+	MOV	A,@CMSG_BTONE
+	LCALL	STOR_MSG
+
+INT_BIOS_RESP_BTONE_END:
+;---------
+;---------
+INT_BIOS_RESP_DTMF:			;for record/play/line/voice_prompt mode
+	PAGE	#(GET_RESPOND)
+	CALL	GET_RESPOND
+	LCALL	DTMF_CHK
+	JPNC	INT_BIOS_RESP_DTMF_END
+	MOV	A,@CREV_DTMF
+	LCALL	STOR_MSG
+INT_BIOS_RESP_DTMF_END:
+;---------
+
+INT_BIOS_END:
+	
+	RET
+;---------------------------------------
+
+;-------------------------------------------------------------------------------
+;	input : TEMP0,TEMP1,TEMP2,TEMP3
+;-------------------------------------------------------------------------------
+DAM_STOP:
+
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+	BANK	2
+	CLR	B2_TMR_BEEP
+	MOV	A,OLD_RAM		;POP _R4
+	MOV	_R4,A
+
+	CLR	EVENT
+
+	BLOCK	1	
+	MOV	_RC,@COMMAND
+	MOV	TEMP0,_RD
+
+	INC	_RC
+
+	MOV	A,_RD
+	AND	A,@0XF0
+	SUB	A,@0X10		;0x1000
+	JPZ	DAM_STOP_RECORD
+	
+	MOV	A,_RD
+	AND	A,@0XF0
+	SUB	A,@0X20		;0x2000
+	JPZ	DAM_STOP_PLAY
+	
+	MOV	A,_RD
+	AND	A,@0XF0
+	SUB	A,@0X40		;0x4000
+	JPZ	DAM_STOP_TONE
+	
+	MOV	A,_RD
+	AND	A,@0XF0
+	SUB	A,@0X50		;0x5000
+	JPZ	DAM_STOP_LINE
+	
+	MOV	A,_RD
+	;AND	A,@0XF0
+	SUB	A,@0XB0		;0xB000
+	JPZ	DAM_STOP_VOICE
+	
+	MOV	A,_RD
+	AND	A,@0XF0
+	SUB	A,@0XC0		;0xC000
+	JPZ	DAM_STOP_PHONE
+	
+	JMP	DAM_STOP_IDLE
+DAM_STOP_RECORD:
+	
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	OR	TEMP0,@(1<<6)
+	MOV	TEMP1,@0X10
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	JPNB	TEMP0,7,DAM_STOP_RECORD	;Try again
+	
+	JMP	DAM_STOP_IDLE
+DAM_STOP_PLAY:
+DAM_STOP_VOICE:
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	BS	TEMP1,1
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	JPNB	TEMP0,6,DAM_STOP_PLAY	;Try again
+	JMP	DAM_STOP_IDLE
+DAM_STOP_TONE:	;---0X4400
+	CLR	TEMP0
+	MOV	TEMP1,@0X44
+
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND	
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	JMP	DAM_STOP_IDLE
+DAM_STOP_LINE:
+	MOV	TEMP0,@0x01
+	MOV	TEMP1,@0X50
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	JMP	DAM_STOP_IDLE
+
+DAM_STOP_PHONE:
+	MOV	TEMP0,@0X80
+	MOV	TEMP1,@0XC0
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	PAGE	#($)
+	
+	;JMP	DAM_STOP_IDLE
+DAM_STOP_IDLE:
+	BANK	1
+	
+	MOV	_RC,@(COMMAND)
+	CLR	_RD
+	INC	_RC
+	CLR	_RD
+	LCALL	SEND2B_COMMAND
+
+	RET
+
+;-------------------------------------------------------------------------------
+INIT_DAM_FUNC:
+	BLOCK	1
+	
+	MOV	_RC,@TONE_QUEUE_TAIL
+	CLR	_RD
+	MOV	_RC,@TONE_QUEUE_HEAD
+	CLR	_RD
+
+	JMP	DAM_STOP	;用JMP少用stack
+;-------------------------------------------------------------------------------
+;	DAA_SPK
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E0C
+;-------------------------------------------------------------------------------
+DAA_SPK:
+;-DA0ToSpk
+	MOV	TEMP0,@0X0C
+	MOV	TEMP1,@0X5E
+DO_IIC:	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	RET
+;-------------------------------------------------------------------------------
+;	DAA_MIC
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E00
+;-------------------------------------------------------------------------------
+DAA_MIC:
+;-MIC-DA0
+	CLR	TEMP0
+	MOV	TEMP1,@0X5E
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DAA_ANS_REC
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E05
+;-------------------------------------------------------------------------------
+DAA_ANS_REC:
+;-LINE-AD0;DA0-SPK
+	MOV	TEMP0,@0X05
+	MOV	TEMP1,@0X5E
+	JMP	DO_IIC
+	
+;-------------------------------------------------------------------------------
+;	DAA_ANS_SPK
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E07
+;-------------------------------------------------------------------------------
+DAA_ANS_SPK:
+;-LINE-AD0;DA0-SPK;DA1-LOUT
+	MOV	TEMP0,@0X07
+	MOV	TEMP1,@0X5E
+	JMP	DO_IIC
+	
+;-------------------------------------------------------------------------------
+;	DAA_LIN_REC
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E04
+;-------------------------------------------------------------------------------
+DAA_LIN_REC:
+;-LINE-AD0
+	MOV	TEMP0,@0X04
+	MOV	TEMP1,@0X5E
+	JMP	DO_IIC
+	
+;-------------------------------------------------------------------------------
+;	DAA_LIN_SPK
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E06
+;-------------------------------------------------------------------------------
+DAA_LIN_SPK:
+;-LINE-AD0;DA1-LOUT
+	MOV	TEMP0,@0X06
+	MOV	TEMP1,@0X5E
+	JMP	DO_IIC
+	
+;-------------------------------------------------------------------------------
+;	DAA_OFF
+;	input :
+;	output:
+;
+;	COMMAND = 0x5E08
+;-------------------------------------------------------------------------------
+DAA_OFF:
+;-AUX-AD0
+	MOV	TEMP0,@0X08
+	MOV	TEMP1,@0X5E
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DAA_PHONE
+;	input : no
+;	output: no
+;
+;	COMMAND = 0x5E11
+;-------------------------------------------------------------------------------
+;DAA_PHONE:
+		
+;	MOV	TEMP0,@0X11
+;	MOV	TEMP1,@0X5E
+;	JMP	DO_IIC
+
+;	RET
+;-------------------------------------------------------------------------------
+;	SET_DAM_MICGAIN
+;	input : no
+;	output: no
+;
+;	COMMAND = 0x5F10
+;-------------------------------------------------------------------------------
+SET_DAM_MICGAIN:
+	MOV	A,@CDAM_MIC_GAIN
+	;JMP	SET_MIC_GAIN
+	
+SET_MIC_GAIN:
+	MOV	TEMP2,A
+	CLR	TEMP3
+
+	MOV	TEMP0,@0X10
+	MOV	TEMP1,@0X5F
+	
+	;JMP	DO_IIC4B
+DO_IIC4B:	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND4B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	RET
+;-------------------------------------------------------------------------------
+;	SET_DAM_AD0GAIN
+;	input : ACC
+;	output: no
+;
+;	COMMAND = 0x5F11
+;-------------------------------------------------------------------------------
+SET_DAM_AD0GAIN:
+	MOV	A,@CDAM_AD0_GAIN
+	JMP	SET_AD0_GAIN
+;-------------------------------------------------------------------------------
+;	SET_DAM_RAD0GAIN
+;	input : ACC
+;	output: no
+;
+;	COMMAND = 0x5F11
+;-------------------------------------------------------------------------------
+SET_DAM_RAD0GAIN:
+	MOV	A,@CDAM_RAD0_GAIN
+	;JMP	SET_AD0_GAIN
+SET_AD0_GAIN:
+	MOV	TEMP2,A
+	CLR	TEMP3
+		
+	MOV	TEMP0,@0X11
+	MOV	TEMP1,@0X5F
+	
+	JMP	DO_IIC4B
+;-------------------------------------------------------------------------------
+;	SET_DAM_AD1GAIN
+;	input : ACC
+;	output: no
+;
+;	COMMAND = 0x5F12
+;-------------------------------------------------------------------------------
+SET_DAM_AD1GAIN:
+	MOV	A,@CDAM_AD1_GAIN
+	;JMP	SET_AD1_GAIN
+SET_AD1_GAIN:
+	MOV	TEMP2,A
+	CLR	TEMP3
+		
+	MOV	TEMP0,@0X12
+	MOV	TEMP1,@0X5F
+	
+	JMP	DO_IIC4B
+;-------------------------------------------------------------------------------
+;	SET_DAM_SPKVOL
+;	input : ACC
+;	output: no
+;
+;	COMMAND = 0x5F20
+;-------------------------------------------------------------------------------
+SET_DAM_SPKVOL:
+	MOV	A,@CDAM_SPK_VOL
+	;JMP	SET_SPKVOL
+SET_SPKVOL:
+	MOV	TEMP2,A
+	CLR	TEMP3
+		
+	MOV	TEMP0,@0X20
+	MOV	TEMP1,@0X5F
+
+	JMP	DO_IIC4B
+;-------------------------------------------------------------------------------
+;	SET_DAM_LNEVOL
+;	input : ACC
+;	output: no
+;
+;	COMMAND = 0x5F21
+;-------------------------------------------------------------------------------
+SET_DAM_LNEVOL:
+	MOV	A,@CDAM_LNE_VOL
+	;JMP	SET_LNEVOL
+SET_LNEVOL:
+	MOV	TEMP2,A
+	CLR	TEMP3
+			
+	MOV	TEMP0,@0X21
+	MOV	TEMP1,@0X5F
+
+	JMP	DO_IIC4B
+;-------------------------------------------------------------------------------
+;	Set DTMF sensitivity
+;	Delete the message with specific MSG_ID
+;	input : acc = the MSG_ID
+;	output: acc = the MSG_ID with current mbox current type
+;
+;	COMMAND = 0x6000
+;-------------------------------------------------------------------------------
+/*
+SET_DTMFSNSTV:
+;---set MSG_ID = ACC
+	MOV	TEMP0,@CDTMF_SENSTV
+	MOV	TEMP1,@0X58
+	JMP	DO_IIC
+*/	
+;-------------------------------------------------------------------------------
+;	VPMSG_DEL
+;	Delete the message with specific MSG_ID
+;	input : acc = the MSG_ID
+;	output: acc = the MSG_ID with current mbox current type
+;
+;	COMMAND = 0x6000
+;-------------------------------------------------------------------------------
+VPMSG_DEL:
+;---set MSG_ID = ACC
+
+	AND	A,@0X7F
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X60
+	JMP	DO_IIC
+	
+;-------------------------------------------------------------------------------
+;	VPMSG_REALDEL
+;	Delete message with del-mark
+;	input : no
+;	output: no
+;
+;	COMMAND = 0x6100
+;-------------------------------------------------------------------------------
+VPMSG_REALDEL:
+
+	CLR	TEMP0
+	MOV	TEMP1,@0X61
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	VPMSG_DELOLD
+;	Delete all old message
+;	input : no
+;	output: no
+;
+;	COMMAND = 0x6080
+;-------------------------------------------------------------------------------
+VPMSG_DELOLD:
+	MOV	TEMP0,@0X80
+	MOV	TEMP1,@0X60
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	VPMSG_DELMARK
+;	input : acc = the MSG_ID
+;	output: acc = the MSG_ID with current mbox current type
+;
+;	COMMAND = 0x2080
+;-------------------------------------------------------------------------------
+;VPMSG_DELMARK:
+	
+	OR	A,@0X80
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X20
+
+	JMP	DO_IIC
+;---------
+SET_DELMARK:
+	
+	OR	A,@0X80
+	MOV	TEMP0,A
+	
+	MOV	A,@0X4
+	JBS	DAM_FLAG,7	;New-messages
+	CLRA
+	OR	A,@0X20
+	MOV	TEMP1,A
+
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	GET_VPLEN
+;	input : acc = the MSG_ID
+;	output: acc = length
+;Get message recording-length(second)
+;	COMMAND = 0xA400
+;-------------------------------------------------------------------------------
+GET_VPLEN:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XA4
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	SET_GROUP
+;
+;	input : acc = the group
+;	output: 
+;
+;	COMMAND = 0xE600
+;-------------------------------------------------------------------------------
+SET_GROUP:
+
+	AND	A,@0X1F
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XE6
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	GET_TELT
+;	Get  total tel-message numbers in current group
+;
+;	input : 
+;	output: 
+;
+;	COMMAND = 0xE401
+;-------------------------------------------------------------------------------
+GET_TELT:
+
+	MOV	TEMP0,@0x01
+	MOV	TEMP1,@0XE4
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DEL_TEL
+;	Delete the TEL-message with specify id
+;
+;	input : 1..220
+;	output: 
+;
+;	COMMAND = 0xE5XX
+;-------------------------------------------------------------------------------
+DEL_TEL:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XE5
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DAT_WRITE
+;
+;	input : acc = the Data will be write
+;	output: 
+;
+;	COMMAND = 0xE000
+;-------------------------------------------------------------------------------
+DAT_WRITE:
+	
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XE0
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DAT_WRITE_STOP
+;
+;	input : acc = the Data will be write
+;	output: 
+;
+;	COMMAND = 0xE100
+;-------------------------------------------------------------------------------
+DAT_WRITE_STOP:
+	CLR	TEMP0
+	MOV	TEMP1,@0XE1
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DAT_READ
+;
+;	input : acc = the MSG_ID
+;	output: 
+;
+;	COMMAND = 0xE200
+;-------------------------------------------------------------------------------
+DAT_READ:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XE2
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	DAT_READ_STOP
+;
+;	input : acc = the MSG_ID
+;	output: 
+;
+;	COMMAND = 0xE300
+;-------------------------------------------------------------------------------
+DAT_READ_STOP:
+
+	CLR	TEMP0
+	MOV	TEMP1,@0XE3
+	
+	JMP	DO_IIC
+
+;-------------------------------------------------------------------------------
+;	GET_TELID
+;
+;	input : acc = the index-0
+;	output: 
+;
+;	Get TEL-message number by specific index-0
+;	COMMAND = 0xE900
+;
+;-------------------------------------------------------------------------------
+GET_TELID:
+GET_0XE9TELID:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XE9
+
+	JMP	DO_IIC
+
+;-------------------------------------------------------------------------------
+;	GET_ONLYID
+;
+;	input : acc = the Message Number
+;	output: 
+;	Get only Id to this message number
+;	COMMAND = 0xA600
+;-------------------------------------------------------------------------------
+GET_ONLYID:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XA6
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	SET_TEL0IDXB
+;
+;	input : acc = the index-0
+;	output: 
+;	Set index-0 before writing TEL data
+;	COMMAND = 0xE700
+;-------------------------------------------------------------------------------
+SET_INITTEL0IDX:		;Set default index-0 = 0xff before write data
+	MOV	A,@0Xff
+;SET_TEL0IDXB:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XE7
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	SET_TEL0IDX
+;
+;	input : acc = the index-0
+;		TEMP0 = TEL-number
+;	output: 
+;	Set index-0 data of a specific TEL-message
+;	COMMAND = 0xEE00
+;	!!!change from "1" to "0" only!!
+;-------------------------------------------------------------------------------
+SET_TEL0IDXF:
+	
+	MOV	TEMP2,A
+	
+	MOV	A,@0XEE
+	MOV	TEMP1,A
+	MOV	TEMP3,A
+	
+	JMP	DO_IIC4B
+;-------------------------------------------------------------------------------
+;	GET_TEL0IDX
+;
+;	input : acc = the message number
+;	output: index-0
+;	Get index-0 data by specific TEL-message number
+;	COMMAND = 0xEA00
+;-------------------------------------------------------------------------------
+GET_TEL0IDX:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XEA
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	GET_VP0IDX
+;
+;	input : acc = the message number
+;	output: 
+;	Set index-0 data of a before record
+;	COMMAND = 0xA900
+;
+;-------------------------------------------------------------------------------
+/*
+GET_VP0IDX:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XA9
+	
+	JMP	DO_IIC
+*/
+;-------------------------------------------------------------------------------
+;	SET_VP1IDX
+;
+;	input : acc = the index-1
+;	output: 
+;	Set index-1 data of a before record
+;	COMMAND = 0x8E00
+;use to identify it is Memo or message(ICM)
+;	Memo - 0
+;	Message - 0xff
+;-------------------------------------------------------------------------------
+SET_VP1IDX:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X8E
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	GET_VP1IDX
+;
+;	input : acc = the message number
+;	output: index-1 data
+;	Set before record
+;	COMMAND = 0xAA00
+;use to identify it is Memo or message(ICM)
+;-------------------------------------------------------------------------------
+GET_VP1IDX:
+
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XAA
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	REC_GIVEUP
+;	input : no
+;	output: no
+;
+;-------------------------------------------------------------------------------
+REC_GIVEUP:
+	CLR	EVENT
+
+	CLR	TEMP0
+	MOV	TEMP1,@0X18
+	
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	REC_CUTTAIL
+;	input : ACC
+;	output: no
+;
+;-------------------------------------------------------------------------------
+REC_CUTTAIL:
+	MOV	TEMP0,A
+	OR	TEMP0,@0x40
+	MOV	TEMP1,@0X10
+	
+	CLR	EVENT
+
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	GET_MSGWEEKNEW/GET_MSGHOURNEW/GET_MSGMINNEW
+;-------------------------------------------------------------------------------
+GET_MSGWEEKNEW:
+
+	MOV	TEMP1,@0XA3
+GET_NEWTAG:
+	MOV	A,B1_MSG_ID
+	OR	A,@0X80
+	MOV	TEMP0,A	
+	
+	JMP	DO_IIC
+GET_MSGHOURNEW:
+	MOV	TEMP1,@0XA2
+	JMP	GET_NEWTAG
+GET_MSGMINNEW:
+	MOV	TEMP1,@0XA1
+	JMP	GET_NEWTAG
+;---
+GET_MSGMONNEW:
+	MOV	TEMP1,@0XAD
+	JMP	GET_NEWTAG
+GET_MSGDAYNEW:
+	MOV	TEMP1,@0XAE
+	JMP	GET_NEWTAG
+;-------------------------------------------------------------------------------
+;	GET_MSGWEEK/GET_MSGHOUR/GET_MSGMIN
+;-------------------------------------------------------------------------------
+GET_MSGWEEK:
+	MOV	TEMP1,@0XA3
+GET_MSGTAG:
+	MOV	TEMP0,B1_MSG_ID
+	JMP	DO_IIC
+GET_MSGHOUR:
+	MOV	TEMP1,@0XA2
+	JMP	GET_MSGTAG
+GET_MSGMIN:
+	MOV	TEMP1,@0XA1
+	JMP	GET_MSGTAG
+
+;---
+GET_MSGMON:
+	MOV	TEMP1,@0XAD
+	JMP	GET_MSGTAG
+GET_MSGDAY:
+	MOV	TEMP1,@0XAE
+	JMP	GET_MSGTAG
+;-------------------------------------------------------------------------------
+;	SET_MSGWEEK/SET_MSGHOUR/SET_MSGMIN
+;-------------------------------------------------------------------------------
+SET_TIME:
+SET_WEEK:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X73
+	JMP	DO_IIC
+SET_HOUR:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X72
+	JMP	DO_IIC
+SET_MIN:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X71
+	JMP	DO_IIC
+SET_SEC:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X70
+	JMP	DO_IIC
+;---
+SET_YEAR:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X76
+	JMP	DO_IIC
+SET_MON:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X75
+	JMP	DO_IIC
+SET_DAY:
+	MOV	TEMP0,A
+	MOV	TEMP1,@0X74
+	JMP	DO_IIC
+;-------------------------------------------------------------------------------
+;	MSG_WEEK/MSG_HOUR/MSG_MIN
+;-------------------------------------------------------------------------------
+VP_TOWEEK:
+	MOV	TEMP1,A
+	ADD	A,@VOPID_SUNDAY
+	LCALL	VOP_STOR_VP
+	
+	RET
+VP_TOHOUR:
+	LCALL	ANNOUNCE_NUM
+	
+	RET
+VP_TOMIN:
+	LCALL	ANNOUNCE_NUM
+	
+	RET
+
+;-------------------------------------------------------------------------------
+
+

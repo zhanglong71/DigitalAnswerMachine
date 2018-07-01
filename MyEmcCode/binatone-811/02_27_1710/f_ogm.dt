@@ -1,0 +1,602 @@
+;-------------------------------------------------------------------------------
+;	OGM/MEMO record OGMplay
+;-------------------------------------------------------------------------------
+ORG	(8<<10)
+;-------------------------------------------------------------------------------
+OGM_FUNC:
+	BANK	1
+	
+	MOV	A,B1_PRO_VAR
+	AND	A,@0X07
+	MTBL
+	JMP	OGM_FUNC_0	;0
+	JMP	OGM_FUNC_RVOP	;1.VOP before record
+	JMP	OGM_FUNC_REC	;2.REC OGM/MEMO
+	JMP	OGM_FUNC_PVOP	;3.VOP after record
+	JMP	OGM_FUNC_PLY	;4.play OGM/VOP
+	JMP	OGM_FUNC_EVOP	;5.VOP after play
+	JMP	OGM_FUNC_DELALL	;6.Del all old message
+	JMP	OGM_FUNC_END	;7.reserved
+	ENDT
+;return
+OGM_FUNC_END:	
+	LJMP	MAIN_LOOP
+;-------------------------------------------------------------------------------
+;	B1_PRO_VAR	bit4 - 0/1 = OGM/Memo
+;			bit5 - 
+;			bit6 - Del-flag
+;-------------------------------------------------------------------------------
+MSGLEN_TAB:
+	MTBL
+	RETL	@0	;0 - 0
+	RETL	@60	;1min - 60s
+	RETL	@120	;2min - 120s
+	RETL	@180	;3min - 180s
+	ENDT
+;-------------------------------------------------------------------------------
+OGM_FUNC_0:	;idle
+	LCALL	INIT_DAM_FUNC
+
+	MOV	A,@CREC_OGM
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_0_OGMREC
+	MOV	A,@CPLY_OGM
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_0_OGMPLY
+
+	MOV	A,@CREC_MMO
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_0_MMOREC
+	
+	MOV	A,@CDEL_ALL
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_0_DELALL
+
+	JMP	OGM_FUNC_END
+;---------------------------------------	
+OGM_FUNC_0_OGMREC:
+;-
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;-	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@13		;OGM
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@16		;RECORDING
+	CALL	VGASTRING
+	
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	MOV	B1_PRO_VAR,@0X01
+OGM_FUNC_0_RECVOP:
+;-DA0ToSpk
+	PAGE	#(DAA_SPK)
+	CALL	DAA_SPK
+	PAGE	#(LBEEP)
+	CALL	LBEEP
+	PAGE	#($)	
+	DAM_SPK_ENABLE
+	JMP	OGM_FUNC_END
+;-----------------------------
+OGM_FUNC_0_MMOREC:
+;-
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;-	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@10		;MEMO
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@16		;RECORDING
+	CALL	VGASTRING
+	
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	
+	MOV	B1_PRO_VAR,@0X11
+	
+	JMP	OGM_FUNC_0_RECVOP
+;---------------------------------------	
+OGM_FUNC_0_OGMPLY:
+	MOV	B1_PRO_VAR,@0X04
+;-
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+
+	MOV	A,@15	;PLAY
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@13	;OGM
+	CALL	VGASTRING
+	
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	;PAGE	#($)
+;-DA0ToSpk
+	LCALL	DAA_SPK
+	DAM_SPK_ENABLE
+;-VP Start
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	LCALL	OGM_STATUS
+	OR	A,@0
+	JPZ	OGM_FUNC_0_OGMPLY_DEFAULT
+	MOV	TEMP1,A
+	MOV	TEMP0,@ID_PLYA
+	PAGE	#(STOR_VP)		
+	CALL	STOR_VP	
+	;PAGE	#(BEEP)
+	CALL	BEEP	
+	PAGE	#($)
+	
+	JMP	OGM_FUNC_END
+OGM_FUNC_0_OGMPLY_DEFAULT:
+	
+	MOV	A,@VOPID_DEFOGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@VOPID_DEFOGM2
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP	
+	;PAGE	#(BEEP)
+	CALL	BEEP
+	PAGE	#($)
+	
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_0_DELALL:
+	MOV	B1_PRO_VAR,@6
+	
+	MOV	A,@CTMR3S
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+OGM_FUNC_0_DELALL_DISP:		;Delete all messages
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@4		;DELETE
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@49		;ALL
+	CALL	VGASTRING	
+	MOV	A,@(CH_INTE)	;?
+	CALL	VGACHAR
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR	
+	PAGE	#($)
+	
+	JMP	OGM_FUNC_END
+;-------------------------------------------------------------------------------
+OGM_FUNC_RVOP:	;VOP beford record
+	
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_VOP_RECSTART
+	
+	MOV	A,@CMSG_EXIT
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_0_OGMPLY
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_VOP_RECSTART:		;VOP over then start record OGM
+	XMUTE_L
+	MUTE_H
+	DAM_MIC_ENABLE
+	SET_NLEDBLK_FLAG
+	LCALL	DAA_MIC	
+	
+	;MOV	A,@CTMR100MS
+	;LCALL	SET_2TIMER
+	
+	SWAPA	B1_PRO_VAR
+	AND	A,@0X01
+	JPNZ	OGM_FUNC_RECMEMO
+	
+OGM_FUNC_RECOGM:	
+	MOV	B1_PRO_VAR,@0X02
+;-
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	PAGE	#(OGM_STATUS)
+	CALL	OGM_STATUS
+OGM_FUNC_RECSTART:
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR1S
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+	
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGANUM2
+	MOV	A,@(NUM_0)
+	CALL	VGANUM2	
+	MOV	A,@(NUM_0)
+	CALL	VGANUM2
+	MOV	A,@(NUM_0)
+	CALL	VGANUM2
+	
+	MOV	A,@(CH_END)
+	CALL	VGANUM2
+	CALL	VGADRAWNUM2
+	;PAGE	#($)
+
+;-Record Start
+	LCALL	RECORD_START
+
+	JMP	OGM_FUNC_END
+OGM_FUNC_RECMEMO:
+	MOV	B1_PRO_VAR,@0X12
+;-
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+
+	MOV	A,@0
+	LCALL	SET_VP1IDX	;Identify as Memo
+	JMP	OGM_FUNC_RECSTART
+;-------------------------------------------------------------------------------
+OGM_FUNC_REC:			;OGM recording
+	MOV	A,@CMSG_MKEY
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_REC_MKEY
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_REC_TMR
+	
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_REC_TMR:
+	INC	B1_PRO_VAR1
+
+	MOV	A,B1_PRO_VAR1
+	PAGE	#(HEX_DGT)	;Note invoke this subroutine only(no other subroutine or jmp)
+	CALL	HEX_DGT
+	MOV	B1_SEC_REG,A	;当大于99时,高位仍是16进制数
+	
+	SWAPA	B1_SEC_REG
+	AND	A,@0X0F
+	CALL	HEX_DGT
+	;PAGE	#($)
+	MOV	B1_MIN_REG,A	;此时保存的只是秒的十位和百位
+;---	
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGANUM2
+
+	SWAPA	B1_MIN_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGANUM2
+	MOV	A,B1_MIN_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGANUM2	
+	MOV	A,B1_SEC_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGANUM2	
+	
+	MOV	A,@(CH_END)
+	CALL	VGANUM2
+	CALL	VGADRAWNUM2
+	PAGE	#($)	
+;---
+	SWAPA	B1_PRO_VAR
+	AND	A,@0X0F
+	JPNZ	OGM_FUNC_REC_TMR_MEMO
+
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@60
+	JPNC	OGM_FUNC_REC_MKEY_STP	;录满60s退出
+	
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_REC_TMR_MEMO:
+	SWAPA	B1_RING_NUM
+	AND	A,@0X03
+	CALL	MSGLEN_TAB
+	MOV	TEMP0,A
+
+	MOV	A,B1_PRO_VAR1
+	SUB	A,TEMP0
+	JPNC	OGM_FUNC_REC_MKEY_STP	;录满60*Xs退出
+	
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_REC_MKEY:
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	OGM_FUNC_REC_MKEY_STP	;Stop record OGM
+	
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	OGM_FUNC_REC_MKEY_SPK	;Stop record OGM
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_REC_MKEY_STP:		;stop record(timer-out/stop-key)
+;---Cut tail or not
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@2
+	JPNC	OGM_FUNC_REC_MKEY_STP_1	
+
+	PAGE	#(REC_GIVEUP)
+	CALL	REC_GIVEUP	;less than 3second 
+OGM_FUNC_REC_MKEY_STP_1:
+	;DAM_NEWLED_H
+	;LCALL	CLR_2TIMER
+	RESET_NLEDBLK_FLAG
+	LCALL	INIT_DAM_FUNC
+;---OGM or MEMO	
+	SWAPA	B1_PRO_VAR
+	AND	A,@0X0F
+	JPNZ	OGM_FUNC_RECSTP
+	
+OGM_FUNC_DELOLD:
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	LCALL	OGM_STATUS
+	MOV	A,TEMP0
+	SUB	A,@1
+	JPC	OGM_FUNC_RECSTP		;Less than 2
+
+	MOV	A,@1			;delete the oldest one
+	LCALL	VPMSG_DEL
+	JMP	OGM_FUNC_DELOLD
+OGM_FUNC_RECSTP:
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+;OGM_FUNC_REC_MKEYSTOP_VOP:
+	PAGE	#(DAA_SPK)
+	CALL	DAA_SPK
+	;PAGE	#(BEEP)
+	CALL	BEEP
+	PAGE	#($)
+	DAM_SPK_ENABLE
+		
+	INC	B1_PRO_VAR		;MOV	B1_PRO_VAR,@0X03	
+	CLR	B1_PRO_VAR1
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_REC_MKEY_SPK:
+	JMP	OGM_FUNC_END
+;-------------------------------------------------------------------------------
+OGM_FUNC_PVOP:
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_PVOP_VPSTOP
+	
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_PVOP_VPSTOP:
+
+	JPB	B1_PRO_VAR,4,OGM_FUNC_PLY_OVER	;Memo record ?
+	JMP	OGM_FUNC_0_OGMPLY
+
+/*	
+	SWAPA	B1_PRO_VAR
+	AND	A,@1
+	MTBL
+	JMP	OGM_FUNC_0_OGMPLY	;0 - After OGM record
+	JMP	OGM_FUNC_PLY_OVER	;1 - After MEMO record(= OGM play end)
+	ENDT
+*/
+;-------------------------------------------------------------------------------
+OGM_FUNC_PLY:	;OGM playing
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_PLY_OVER
+
+	MOV	A,@CMSG_MKEY
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_PLY_MKEY
+
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_PLY_TMR
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_PLY_MKEY:
+
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	OGM_FUNC_PLY_MKEY_STP	;Stop record OGM
+
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	OGM_FUNC_PLY_MKEY_DEL	;Delete the message
+
+	JMP	OGM_FUNC_END		;!!!
+;---------------------------------------
+OGM_FUNC_PLY_TMR:
+	INC	B1_PRO_VAR1
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_PLY_MKEY_STP:			;stop playing OGM
+	MOV	B1_PRO_VAR,@0X05
+
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(BEEP)
+	CALL	BEEP	
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+	PAGE	#($)
+		
+	JMP	OGM_FUNC_END
+OGM_FUNC_PLY_MKEY_DEL:
+	JPB	B1_PRO_VAR,6,OGM_FUNC_DO_DELOGM
+	BS	B1_PRO_VAR,6
+	
+OGM_FUNC_0_DELONE_DISP:		;Delete one message
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@4		;DELETE
+	CALL	VGASTRING
+	MOV	A,@(CH_INTE)	;?
+	CALL	VGACHAR
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_DO_DELOGM:	
+	LCALL	INIT_DAM_FUNC
+	
+	BC	B1_PRO_VAR,6
+
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	PAGE	#(OGM_STATUS)
+	CALL	OGM_STATUS
+	PAGE	#(VPMSG_DEL)
+	CALL	VPMSG_DEL
+	PAGE	#(GC_CHK)	
+	CALL	GC_CHK
+	PAGE	#($)
+	JMP	OGM_FUNC_PLY_MKEY_STP
+;---------------------------------------
+OGM_FUNC_PLY_OVER:
+	DAM_SPK_DISABLE
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_OFF)
+	CALL	DAA_OFF
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	PAGE	#(CLR_PRO_STACK)	
+	CALL	CLR_PRO_STACK
+	CLR	B1_PRO_VAR
+	
+	MOV	A,@CTMR500MS
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+;---
+	MOV	A,@CMSG_INIT
+	LCALL	STOR_MSG
+	
+	JMP	OGM_FUNC_END	
+;-------------------------------------------------------------------------------
+OGM_FUNC_EVOP:	;OGM over
+			
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_EVOP_PLYOVER
+
+	JMP	OGM_FUNC_END
+;---------------------------------------
+OGM_FUNC_EVOP_PLYOVER:
+	JMP	OGM_FUNC_PLY_OVER
+;-------------------------------------------------------------------------------
+OGM_FUNC_DELALL:	;Del all
+
+	MOV	A,@CMSG_MKEY
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_DELALL_MKEY
+
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	OGM_FUNC_DELALL_TMR
+
+	JMP	OGM_FUNC_END	
+;---------------------------------------
+OGM_FUNC_DELALL_MKEY:
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	OGM_FUNC_DELALL_MKEY_DEL	;Delete the message
+
+	;JMP	OGM_FUNC_DELALL_FORIDLE
+;-------------------	
+OGM_FUNC_DELALL_FORIDLE:
+	MOV	A,B1_MSG
+	PAGE	#(KSTOR_MSG)
+	CALL	KSTOR_MSG
+	CALL	KCLR_PRO_STACK
+	PAGE	#($)
+
+	CLR	B1_PRO_VAR
+
+	JMP	OGM_FUNC_END	;!!!Note exit the status
+;---------------------------------------
+OGM_FUNC_DELALL_TMR:
+	JMP	OGM_FUNC_PLY_OVER
+;---------------------------------------
+OGM_FUNC_DELALL_MKEY_DEL:
+	MOV	B1_PRO_VAR,@5
+;-
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	PAGE	#(VPMSG_DELOLD)
+	CALL	VPMSG_DELOLD
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#(TEL_UNLINK)
+	CALL	TEL_UNLINK
+;-DA0ToSpk
+	DAM_SPK_ENABLE	
+	PAGE	#(DAA_SPK)
+	CALL	DAA_SPK
+	
+	PAGE	#(VPQUE)
+	MOV	A,@VOPID_ALLMESSAGES
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_DELETED
+	CALL	VOP_STOR_VP
+OGM_FUNC_DODEL_DISP:	
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@47		;Delete...
+	CALL	VGASTRING
+
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	
+	JMP	OGM_FUNC_END
+;-------------------------------------------------------------------------------

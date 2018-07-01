@@ -1,0 +1,1219 @@
+;-------------------------------------------------------------------------------
+;	remote
+;-------------------------------------------------------------------------------
+ORG	(5<<10)
+;-------------------------------------------------------------------------------
+RMT_FUNC:
+	BANK	1
+	
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	RMT_FUNC_MKEY
+	
+	MOV 	A,@CHOOK_OFF
+	SUB 	A,B1_MSG
+	JPZ 	RMT_FUNC_HOOKOFF
+
+	MOV	A,B1_PRO_VAR
+	AND	A,@0X03
+	MTBL
+	JMP	RMT_0	;0
+	JMP	RMT_1	;1	Play message
+	JMP	RMT_2	;2	OGM(play/record)
+	JMP	RMT_3	;3	Exit
+	ENDT
+;return
+RMT_FUNC_END:	
+	LJMP	MAIN_LOOP
+;-------------------------------------------------------------------------------
+RMT_FUNC_MKEY:
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	RMT_FUNC_MKEY_STP
+	
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	RMT_FUNC_MKEY_SPK
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_MKEY_STP:
+	MOV	A,@CMSG_CPC
+	MOV	B1_MSG,A
+	
+	JMP	RMT_FUNC
+;---------------------------------------
+RMT_FUNC_MKEY_SPK:
+	MOV	A,@CMSG_CPC
+	MOV	B1_MSG,A
+	
+	MOV	A,@CPHONE_ON
+	LCALL	STOR_MSG
+	
+	JMP	RMT_FUNC
+;---------------------------------------
+RMT_FUNC_HOOKOFF:
+	MOV	A,@CMSG_CPC
+	MOV	B1_MSG,A
+	
+	MOV	A,@CHOOK_OFF
+	LCALL	STOR_MSG
+	
+	JMP	RMT_FUNC
+;-------------------------------------------------------------------------------
+RMT_0:
+	MOV	A,@CMSG_INIT
+	SUB	A,B1_MSG
+	JPZ	RMT_FUNC_0_INIT
+
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_FUNC_0_VPEND
+
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_FUNC_0_DTMF
+
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	RMT_FUNC_0_TMR
+
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_0_CPC
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+;	B1_PRO_VAR	bit4 - 1/0 - VOP status/not
+;			bit5 - 1/0 - Del flag
+;---------------------------------------
+RMT_FUNC_0_INIT:
+	;HF_HOOK_H
+	DAM_SPK_DISABLE
+;-
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+	PAGE	#(BCVOX_INIT)
+	CALL	BCVOX_INIT
+	;PAGE	#(CLR_TIMER)
+	;CALL	CLR_TIMER	;Disable Timer
+	;PAGE	#($)
+
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@17		;REMOTE
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	;PAGE	#($)
+;-	
+	LCALL	LBEEP
+	MOV	B1_PRO_VAR,@0X10
+	CLR	B1_MSG_ID
+
+RMT_FUNC_0_VPEND:
+	CLR	B1_PRO_VAR1
+	
+	JPNB	B1_PRO_VAR,4,RMT_FUNC_0_VOPOVER_1
+
+	MOV	A,B1_MSG_ID
+	LCALL	RMT_VOP_TAB
+	OR	A,@0
+	JPZ	RMT_FUNC_0_VOPOVER_0	;VOP over(The table end with "0")
+	LCALL	VOP_STOR_VP
+	INC	B1_MSG_ID
+
+	JMP	RMT_FUNC_END
+;-------------------
+RMT_FUNC_0_VOPOVER_0:
+	BC	B1_PRO_VAR,4	;VOP-flag
+	LCALL	BEEP
+	JMP	RMT_FUNC_END
+RMT_FUNC_0_VOPOVER_1:
+
+	CLR	B1_PRO_VAR
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_REC)
+	CALL	DAA_LIN_REC
+	PAGE	#(LINE_START)
+	CALL	LINE_START
+
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_TMR:
+	INC	B1_PRO_VAR1
+	
+	BC	B1_PRO_VAR,5	;Clean del-falg
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@19
+	JPC	RMT_FUNC_END
+	JMP	RMT_3_EXIT_VPEND	;TimeOut( >=20s )
+;---------------------------------------
+RMT_0_CPC:
+RMT_1_0_CPC:
+RMT_1_2_CPC:	
+RMT_2_VOP_CPC:
+RMT_2_PLY_CPC:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#($)
+
+	JMP	RMT_3_EXIT_VPEND	;TimeOut( >=20s )
+;---------------------------------------
+RMT_FUNC_0_DTMF:
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_JIN
+	JPZ	RMT_FUNC_0_DTMFJIN
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_XIN
+	JPZ	RMT_FUNC_0_DTMFXIN
+	
+	MOV	A,B1_DTMF_VAL
+	AND	A,@0X0F
+	MTBL
+	JMP	RMT_FUNC_0_DTMF_0	;0x00
+	JMP	RMT_FUNC_END		;0x01
+	JMP	RMT_FUNC_0_DTMF_2	;play message
+	JMP	RMT_FUNC_END		;0x03
+	JMP	RMT_FUNC_0_DTMF_4	;play announcement
+	JMP	RMT_FUNC_0_DTMF_5	;record announcement
+	JMP	RMT_FUNC_END		;0x06
+	JMP	RMT_FUNC_END		;No
+	JMP	RMT_FUNC_0_DTMF_8	;Set answer off
+	JMP	RMT_FUNC_0_DTMF_9	;Set answer on
+	JMP	RMT_FUNC_END		;0x0A
+	JMP	RMT_FUNC_END		;0x0B
+	JMP	RMT_FUNC_END		;0x0C
+	JMP	RMT_FUNC_END		;0x0D
+	JMP	RMT_FUNC_END		;0x0E
+	JMP	RMT_FUNC_END		;0x0F
+	ENDT
+;---------------------------------------
+RMT_FUNC_0_DTMF_0:
+	JPB	B1_PRO_VAR,5,RMT_0_DODELALL
+	
+	BS	B1_PRO_VAR,5	;Set del-falg
+	
+	JMP	RMT_FUNC_END
+;-------------------
+RMT_0_DODELALL:
+	BC	B1_PRO_VAR,5	;Clean del-falg
+	
+	BS	B1_PRO_VAR,4
+	CLR	B1_MSG_ID
+	
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+
+	PAGE	#(VPMSG_DELOLD)
+	CALL	VPMSG_DELOLD
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+
+	MOV	A,@CTMR1S
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+
+	PAGE	#(VOP_STOR_VP)	
+	MOV	A,@VOPID_ALLMESSAGES
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_DELETED
+	CALL	VOP_STOR_VP
+	CALL	LBEEP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_2:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	CALL	VPMSG_CHK
+	PAGE	#($)
+	
+	MOV	B1_PRO_VAR,@0X01
+	CLR	B1_MSG_ID
+	
+	JPB	DAM_FLAG,6,RMT_FUNC_0_DTMF_2_ALLMSG
+
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_YOUHAVE
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_NO
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_MESSAGES
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+
+	MOV	B1_PRO_VAR,@0X21		;其状态与EndOfMessage相同
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_2_ALLMSG:
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_YOUHAVE
+	CALL	VOP_STOR_VP
+	MOV	A,B1_MSG_T
+	PAGE	#(ANNOUNCE_NUM)
+	CALL	ANNOUNCE_NUM
+	MOV	A,@VOPID_MESSAGES
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+
+	JPB	DAM_FLAG,7,RMT_FUNC_0_DTMF_2_NEWMSG
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_2_NEWMSG:
+
+	MOV	A,B1_MSG_N
+	PAGE	#(ANNOUNCE_NUM)
+	CALL	ANNOUNCE_NUM
+	MOV	A,@VOPID_NEW
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_MESSAGES
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_4:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+	PAGE	#($)
+
+	MOV	B1_PRO_VAR,@0X22
+	
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	LCALL	OGM_STATUS
+	OR	A,@0
+	JPZ	RMT_FUNC_0_OGMPLY_DEFAULT
+	MOV	TEMP1,A
+	MOV	TEMP0,@ID_PLYA
+	PAGE	#(DSP)
+	CALL	STOR_VP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;-------------------
+RMT_FUNC_0_OGMPLY_DEFAULT:
+	
+	MOV	A,@VOPID_DEFOGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@VOPID_DEFOGM2
+	PAGE	#(DSP)
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_5:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+	PAGE	#(LBEEP)
+	CALL	LBEEP
+	PAGE	#($)
+	
+	MOV	B1_PRO_VAR,@0X02
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_8:	;AnswerMachine is off
+	DAM_OFF
+	
+	BS	B1_PRO_VAR,4
+	CLR	B1_MSG_ID
+;---
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+	;PAGE	#($)
+	
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_ANSMACHINE
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_OFF
+	CALL	VOP_STOR_VP
+	CALL	LBEEP
+	PAGE	#($)
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_9:
+	BS	B1_PRO_VAR,4
+	CLR	B1_MSG_ID
+
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_LIN_SPK)
+	CALL	DAA_LIN_SPK
+	PAGE	#($)
+
+	JPNB	DAM_FLAG,2,RMT_FUNC_0_DTMF_9_SELOGM
+	
+	DAM_ON
+	SEL_OGM1
+	
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_ANSMACHINE
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_ON
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_ANNOUNCEMENT
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_ONE
+	CALL	VOP_STOR_VP
+	CALL	LBEEP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_9_SELOGM:	;AnswerMachine is on Select OGM
+	SELOGM_COM
+	
+	JPB	DAM_FLAG,3,RMT_FUNC_0_DTMF_9_SELOGM2
+	
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_ANNOUNCEMENT
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_ONE
+	CALL	VOP_STOR_VP
+	CALL	LBEEP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMF_9_SELOGM2:
+	
+	PAGE	#(VOP_STOR_VP)		
+	MOV	A,@VOPID_ANNOUNCEMENT
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_TWO
+	CALL	VOP_STOR_VP
+	CALL	LBEEP
+	PAGE	#($)
+		
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMFXIN:
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_FUNC_0_DTMFJIN:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	PAGE	#($)
+	
+	JMP	RMT_3_EXIT_VPEND
+;-------------------------------------------------------------------------------
+RMT_1:			;play Mode
+	SWAPA	B1_PRO_VAR
+	AND	A,@0X03
+	MTBL
+	JMP	RMT_1_0		;Start VOP
+	JMP	RMT_1_1		;Playing message
+	JMP	RMT_1_2		;End of play
+	JMP	RMT_1_3		;exit
+	ENDT
+;---------------------------------------
+;B1_PRO_VAR	bit(1..0)	=Play function
+;		bit2		=reserved
+;		bit3		=Repeat-flag
+;		bit(5..4)	=step(start_VOP/message/End_VOP)
+;		bit6		=pause status
+;		bit7		=TimeOut pause status
+;---------------------------------------
+RMT_1_0:		;Play message
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_1_0_DTMF
+
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE
+	JPZ	RMT_1_0_BTONE
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	RMT_1_0_TMR
+
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_1_0_VPEND
+
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_1_0_CPC
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_0_DTMF:
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@6
+	JPZ	RMT_1_0_DTMF_6
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_JIN
+	JPZ	RMT_1_0_DTMF_JIN
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_0_DTMF_JIN:
+RMT_1_0_BTONE:
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_1_0_TMR:
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@165		;2.75m(2m45s)
+	JPZ	RMT_1_0_TMROUT
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_0_TMROUT:
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	BS	TEMP1,0
+	CALL	STOR_COMMAND
+	PAGE	#($)	
+	
+	CLR	B1_PRO_VAR1
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_0_VPEND:
+	LCALL	INIT_DAM_FUNC
+	MOV	B1_PRO_VAR,@0X11
+	;LCALL	VPMSG_CHK
+
+	JMP	RMT_1_1_VPEND
+;-------------------------------------------------------------------------------
+RMT_1_1:
+
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_1_1_DTMF
+
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE
+	JPZ	RMT_1_1_BTONE
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	RMT_1_1_TMR
+
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_1_1_VPEND
+
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_1_1_CPC
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_CPC:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#($)	
+	
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_1_1_DTMF:
+
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_JIN
+	JPZ	RMT_1_1_DTMF_JIN
+
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_7
+	JPNC	RMT_FUNC_END	;>7
+;-B1_DTMF_VAL ==> 0..7	
+	MOV	A,B1_DTMF_VAL
+	AND	A,@0X07
+	MTBL
+	JMP	RMT_FUNC_END	;0-reserved
+	JMP	RMT_1_1_DTMF_1	;Last one
+	JMP	RMT_1_1_DTMF_2	;pause/replay
+	JMP	RMT_1_1_DTMF_3	;next
+	JMP	RMT_FUNC_END	;4-reserved
+	JMP	RMT_FUNC_END	;5-reserved
+	JMP	RMT_1_1_DTMF_6	;stop
+	JMP	RMT_1_1_DTMF_7	;Erase the playing message
+	ENDT
+;---------------------------------------
+RMT_1_1_DTMF_1:
+	LCALL	INIT_DAM_FUNC
+
+	JPB	B1_PRO_VAR,3,RMT_1_1_DTMF_1_DOLAST
+	BS	B1_PRO_VAR,3	;Set repeat-flag
+	
+	MOV	A,@CTMR1S
+	LCALL	STOR_MSG
+RMT_1_1_DTMF_1_REPEAT:
+	JMP	RMT_1_1_IDOK
+RMT_1_1_DTMF_1_DOLAST:
+	MOV	A,B1_MSG_ID
+	SUB	A,@1
+	JPC	RMT_1_1_DTMF_1_REPEAT
+	
+	DEC	B1_MSG_ID
+	JMP	RMT_1_1_DTMF_1_REPEAT
+;---------------------------------------
+RMT_1_1_DTMF_2:
+	CLR	B1_PRO_VAR1
+	
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	PAGE	#($)
+	XOR	TEMP1,@0x01		;Pause/restart
+
+	MOV	A,TEMP1
+	AND	A,@0XF0
+	SUB	A,@0X20
+	JPZ	RMT_1_1_DTMF_DOPAUSE
+;---Not 0x2000
+	MOV	A,TEMP1
+	AND	A,@0XF0
+	SUB	A,@0XB0
+	JPNZ	RMT_FUNC_END	;Not 0xB000
+	
+RMT_1_1_DTMF_DOPAUSE:	
+;---0X2000/0XB000	
+	BS	B1_PRO_VAR,6
+	JBS	TEMP1,0
+	BC	B1_PRO_VAR,6
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND	
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_DTMF_3:	
+	nop
+	JMP	RMT_1_1_VPEND
+;---------------------------------------
+RMT_1_1_DTMF_7:
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+;---Do delete
+	MOV	A,B1_MSG_ID
+	PAGE	#(SET_DELMARK)
+	CALL	SET_DELMARK
+;---Display	
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_MESSAGE
+	CALL	VOP_STOR_VP		;VP"message"
+	MOV	A,@VOPID_DELETED
+	CALL	VOP_STOR_VP		;VP"Deletee"	
+	PAGE	#($)
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_DTMF_JIN:	;Exit the Remote
+RMT_1_1_BTONE:
+
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)	
+	CALL	VPMSG_REALDEL
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#($)
+
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_1_1_TMR:
+	INC	B1_PRO_VAR1
+	
+	BC	B1_PRO_VAR,3	;Clean repeat-flag
+	
+	JPB	B1_PRO_VAR,7,RMT_1_1_TMROUTPAUSE
+	JPB	B1_PRO_VAR,6,RMT_1_1_KEYPASUE
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@165
+	JPZ	RMT_1_1_TMROUT
+	JMP	RMT_FUNC_END
+	
+;---------------------------------------
+RMT_1_1_TMROUT:
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	BS	TEMP1,0
+	CALL	STOR_COMMAND
+	PAGE	#($)	
+	
+	BS	B1_PRO_VAR,7	;TimerOut pause
+	CLR	B1_PRO_VAR1
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_TMROUTPAUSE:		;In TimerOut pause(2.75min continue play message), if no new command receive in 10s then exit		
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@10
+	JPNZ	RMT_FUNC_END
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#($)
+	
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_1_1_KEYPASUE:		;In Key pause, if no new command receive in 30s then play continue	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@30
+	JPNZ	RMT_FUNC_END
+	
+	PAGE	#(IIC)
+	CALL	GET_COMMAND
+	BC	TEMP1,0
+	CALL	STOR_COMMAND
+	PAGE	#($)	
+
+	BC	B1_PRO_VAR,6	;pause timerout,continue play
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_VPEND:
+	
+	MOV	A,B1_MSG_N
+	JBS	DAM_FLAG,7
+	MOV	A,B1_MSG_T
+	SUB	A,B1_MSG_ID
+	JPZ	RMT_1_1_VPOVER_VPEND
+
+	INC	B1_MSG_ID		;next message
+RMT_1_1_IDOK:			;找到下一条要播放的VP的ID号
+	LCALL	INIT_DAM_FUNC
+;---------------------------------------
+RMT_1_1_LOADVP:
+	MOV	A,@VOPID_MESSAGE
+	LCALL	VOP_STOR_VP		;VP"message"
+	MOV	A,B1_MSG_ID		;message_ID	;报出的
+	LCALL	ANNOUNCE_NUM
+RMT_1_1_LOADVP_1:
+	JPB	DAM_FLAG,7,RMT_1_1_LOADVPNEW
+
+	MOV	TEMP1,B1_MSG_ID
+	MOV	TEMP0,@ID_PLYA
+	LCALL	STOR_VP	
+;---Get the tag
+	PAGE	#(GET_MSGMIN)	
+	CALL	GET_MSGMIN
+	MOV	B1_MIN_REG,TEMP0
+	CALL	GET_MSGHOUR
+	MOV	B1_HOUR_REG,TEMP0
+	CALL	GET_MSGDAY
+	MOV	B1_DAY_REG,TEMP0
+	CALL	GET_MSGMON
+	MOV	B1_MON_REG,TEMP0
+	CALL	GET_MSGWEEK
+	MOV	B1_WEEK_REG,TEMP0
+
+	MOV	A,B1_WEEK_REG
+	CALL	VP_TOWEEK
+	MOV	A,B1_HOUR_REG
+	CALL	VP_TOHOUR
+	MOV	A,B1_MIN_REG
+	CALL	VP_TOMIN
+	PAGE	#($)
+;---
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_LOADVPNEW:
+	MOV	TEMP1,B1_MSG_ID
+	MOV	TEMP0,@ID_PLYN
+	LCALL	STOR_VP
+;---Get the tag
+	PAGE	#(GET_MSGMINNEW)	
+	CALL	GET_MSGMINNEW
+	MOV	B1_MIN_REG,A
+	CALL	GET_MSGHOURNEW
+	MOV	B1_HOUR_REG,A
+	CALL	GET_MSGDAYNEW
+	MOV	B1_DAY_REG,A
+	CALL	GET_MSGMONNEW
+	MOV	B1_MON_REG,A
+	CALL	GET_MSGWEEKNEW
+	MOV	B1_WEEK_REG,A
+
+	MOV	A,B1_WEEK_REG
+	CALL	VP_TOWEEK
+	MOV	A,B1_HOUR_REG
+	CALL	VP_TOHOUR
+	MOV	A,B1_MIN_REG
+	CALL	VP_TOMIN
+	PAGE	#($)
+;---
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_1_VPOVER_VPEND:
+	MOV	B1_PRO_VAR,@0X21
+
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL	;0x6100
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+
+	MOV	A,@VOPID_ENDOFMESSAGE
+	PAGE	#(VOP_STOR_VP)
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+
+	JMP	RMT_FUNC_END
+;-------------------------------------------------------------------------------
+RMT_1_2:
+
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_1_2_DTMF
+
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE
+	JPZ	RMT_1_2_BTONE
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	RMT_1_2_TMR
+
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_1_2_VPEND
+	
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_1_2_CPC
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_2_VPEND:
+
+	CLR	B1_PRO_VAR1
+	CLR	B1_PRO_VAR
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	
+	MOV	A,@CMSG_INIT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	PAGE	#($)
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_2_TMR:
+	CLR	B1_PRO_VAR1
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_2_BTONE:
+	CLR	B1_PRO_VAR1
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)	
+	CALL	VPMSG_REALDEL
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#($)
+
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_1_2_DTMF:
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@6
+	JPZ	RMT_1_2_DTMF_6
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_JIN
+	JPZ	RMT_1_2_DTMF_JIN
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_0_DTMF_6:		;EndOfMessage
+RMT_1_1_DTMF_6:
+	
+	JMP	RMT_1_1_VPOVER_VPEND
+;---------------------------------------
+RMT_1_2_DTMF_6:
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_1_2_DTMF_JIN:
+	
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#($)
+
+	JMP	RMT_3_EXIT_VPEND	
+;-------------------------------------------------------------------------------
+RMT_1_3:
+	
+	JMP	RMT_FUNC_END
+;-------------------------------------------------------------------------------
+RMT_2:			;OGM Mdoe
+	SWAPA	B1_PRO_VAR
+	AND	A,@0X03
+	MTBL
+	JMP	RMT_2_VOP	;Start VOP
+	JMP	RMT_2_REC	;OGM record
+	JMP	RMT_2_PLY	;OGM play
+	JMP	RMT_2_3		;exit
+	ENDT
+;-------------------------------------------------------------------------------
+RMT_2_VOP:		;VOP before OGM-record
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_2_VOP_RECSTART
+
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_2_VOP_DTMF
+	
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_2_VOP_CPC
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_VOP_RECSTART:
+	LCALL	BCVOX_INIT
+	LCALL	INIT_DAM_FUNC
+	LCALL	DAA_LIN_REC
+
+	MOV	B1_PRO_VAR,@0X12
+
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+	LCALL	OGM_STATUS
+
+	LCALL	RECORD_START
+
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_VOP_DTMF:
+	MOV	A,B1_DTMF_VAL	
+	SUB	A,@NUM_JIN
+	JPZ	RMT_3_EXIT_VPEND	;#
+	
+	JMP	RMT_FUNC_END
+;-------------------------------------------------------------------------------
+RMT_2_REC:		;Record OGM
+
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_2_REC_DTMF
+
+	MOV	A,@CMSG_CTONE
+	SUB	A,B1_MSG		;CTONE
+	JPZ	RMT_2_REC_CTONE
+
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE
+	JPZ	RMT_2_REC_BTONE
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	RMT_2_REC_TMR
+	
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_2_REC_CPC
+		
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_REC_CPC:
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@2
+	JPNC	RMT_2_REC_CPC_RECOK
+
+	PAGE	#(REC_GIVEUP)
+	CALL	REC_GIVEUP
+RMT_2_REC_CPC_RECOK:	
+	LCALL	INIT_DAM_FUNC
+
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_2_REC_TMR:
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@60
+	JPNZ	RMT_FUNC_END
+;---Over 60s
+RMT_2_START_OGMPLY:
+	LCALL	INIT_DAM_FUNC
+	LCALL	DAA_LIN_SPK
+
+	MOV	B1_PRO_VAR,@0X22
+	
+	LCALL	BEEP
+	
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	LCALL	OGM_STATUS
+	OR	A,@0
+	JPZ	RMT_2_START_OGMPLY_DEFAULT
+	MOV	TEMP1,A
+	MOV	TEMP0,@ID_PLYA
+	LCALL	STOR_VP	
+
+	LCALL	BEEP	
+
+	JMP	RMT_FUNC_END
+;-------------------
+RMT_2_START_OGMPLY_DEFAULT:
+	
+	MOV	A,@VOPID_DEFOGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@VOPID_DEFOGM2
+	LCALL	VOP_STOR_VP	
+	LCALL	BEEP
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_REC_DTMF:
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@6
+	JPZ	RMT_2_REC_DTMF_6
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_JIN
+	JPZ	RMT_2_REC_DTMF_JIN
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------	
+RMT_2_REC_DTMF_6:
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@3
+	JPNC	RMT_2_REC_DTMF_6_SUCC
+;---Less than 3s, give up the message
+	LCALL	REC_GIVEUP
+	LCALL	GC_CHK
+	;JMP	RMT_FUNC_END
+RMT_2_REC_DTMF_6_SUCC:
+	LCALL	INIT_DAM_FUNC
+RMT_2_DELOLD:
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	LCALL	OGM_STATUS
+	MOV	A,TEMP0
+	SUB	A,@1
+	JPC	RMT_2_DELOLD_END	;Less than 2
+
+	MOV	A,@1			;delete the oldest one
+	LCALL	VPMSG_DEL
+	JMP	RMT_2_DELOLD
+RMT_2_DELOLD_END:
+	LCALL	GC_CHK
+
+	JMP	RMT_2_START_OGMPLY
+;---------------------------------------
+RMT_2_REC_DTMF_JIN:	;"#" exit
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@3
+	JPNC	RMT_2_REC_DTMF_JIN_SUCC
+;---Less than 3s, give up the message
+	LCALL	REC_GIVEUP
+	LCALL	GC_CHK
+RMT_2_REC_DTMF_JIN_SUCC:
+	LCALL	INIT_DAM_FUNC
+
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_2_REC_CTONE:
+RMT_2_REC_BTONE:
+	JMP	RMT_2_REC_DTMF_JIN
+;-------------------------------------------------------------------------------
+RMT_2_PLY:		;Play OGM
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG
+	JPZ	RMT_2_PLY_DTMF
+
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE
+	JPZ	RMT_2_PLY_BTONE
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	RMT_2_PLY_TMR
+
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_2_PLY_VPEND
+
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	RMT_2_PLY_CPC
+		
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_PLY_BTONE:
+	JMP	RMT_3_EXIT_VPEND	;Exit directly
+;---------------------------------------
+RMT_2_PLY_TMR:
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_PLY_DTMF:
+
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@6
+	JPZ	RMT_2_PLY_DTMF_6
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@7
+	JPZ	RMT_2_PLY_DTMF_7
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_JIN
+	JPZ	RMT_2_PLY_DTMF_JIN
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_PLY_DTMF_6:	;Stop playing OGM
+
+	LCALL	INIT_DAM_FUNC
+	LCALL	DAA_LIN_REC
+
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	
+	CLR	B1_PRO_VAR
+	LCALL	LINE_START
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_PLY_DTMF_7:	;Delete playing OGM
+	LCALL	INIT_DAM_FUNC
+RMT_2_PLY_DELOGM:	
+	MOV	A,@COGM1
+	JBC	DAM_FLAG,3
+	MOV	A,@COGM2
+
+	LCALL	OGM_STATUS
+	OR	A,@0
+	JPNZ	RMT_2_PLY_DELOGM
+	
+	PAGE	#(VOP_STOR_VP)
+	MOV	A,@VOPID_MESSAGE
+	CALL	VOP_STOR_VP
+	MOV	A,@VOPID_DELETED
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_PLY_DTMF_JIN:
+	LCALL	INIT_DAM_FUNC
+	JMP	RMT_3_EXIT_VPEND
+;---------------------------------------
+RMT_2_PLY_VPEND:
+	CLR	B1_PRO_VAR
+	CLR	B1_PRO_VAR1
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	MOV	A,@CMSG_INIT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	PAGE	#($)
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_2_3:
+	JMP	RMT_FUNC_END
+;-------------------------------------------------------------------------------
+RMT_3:			;Exit Mode
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	RMT_3_EXIT_VPEND
+	
+	JMP	RMT_FUNC_END
+;---------------------------------------
+RMT_3_EXIT_VPEND:
+	
+	HF_HOOK_L		;On hook
+
+	PAGE	#(SET_DAM_AD0GAIN)
+	CALL	SET_DAM_AD0GAIN
+	PAGE	#(CLR_PRO_STACK)
+	CALL	CLR_PRO_STACK
+	CLR	B1_PRO_VAR
+
+	MOV	A,@CMSG_INIT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	PAGE	#($)
+
+	JMP	RMT_FUNC_END
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------

@@ -1,0 +1,123 @@
+.LIST
+;-------------------------------------------------------------------------------
+GET_VP:
+	LAC	VP_QUEUE
+	ANDK	0X0F
+	SAH	SYSTMP0
+	LAC	VP_QUEUE
+	SFR	8
+	SBH	SYSTMP0
+	BS	ACZ,GET_VP_END
+	
+	LAC	VP_QUEUE
+	ADHK	1
+	ANDL	0X0F0F
+	SAH	VP_QUEUE
+	
+	ANDK	0XF
+	ADHL	VP_ADDR
+	SAH	SYSTMP0		;ADDRESS
+	
+	MAR	+0,1
+	LAR	SYSTMP0,1
+	LAC	+0,1
+GET_VP_END:
+	RET
+;------------------------------------------------------------------------------
+;	Function : STOR_VP
+;
+;		input : ACCH
+;		output: no
+;------------------------------------------------------------------------------
+STOR_VP:
+	SAH	SYSTMP0
+	LAC	VP_QUEUE
+	ADHL	0X100
+	ANDL	0X0F0F
+	SAH	VP_QUEUE
+	
+	SFR	8
+	ADHL	VP_ADDR
+	SAH	SYSTMP1		;ADDRESS
+	
+	MAR	+0,1
+	LAR	SYSTMP1,1
+	LAC	SYSTMP0
+	SAH	+0,1
+	RET
+;---
+;-------------------------------------------------------------------------------
+INT_BIOS_START:
+	SAH	SYSTMP2
+	CALL	DAM_STOP
+	
+	LAC	SYSTMP2
+	ANDL	0XFF
+	SAH	SYSTMP0
+	
+	LAC	SYSTMP2
+	SFR	8
+	SAH	SYSTMP1
+	
+	SBHL	0XFF
+	BS	ACZ,INT_BIOS_START_VOP
+	LAC	SYSTMP1
+	SBHL	0XFE
+	BS	ACZ,INT_BIOS_START_PLAY_TOTAL
+	LAC	SYSTMP1
+	SBHL	0XFD
+	BS	ACZ,INT_BIOS_START_PLAY_NEW
+INT_BIOS_START_BEEP:
+	LAC	SYSTMP0
+	SFL	3
+	SAH	TMR_BEEP		;length of time
+	LAC	SYSTMP1
+	SFL	8
+	BS	ACZ,INT_BIOS_START_BEEP0	;frequency = 0(·¢Éù¼äÏ¶)
+	SAH	BUF1			;frequency
+	
+	LACL	CBEEP_COMMAND		;ON
+	CALL    DAM_BIOSFUNC
+	
+	LAC	BUF1
+	CALL    DAM_BIOSFUNC
+	LACK	0
+	CALL    DAM_BIOSFUNC
+INT_BIOS_START_BEEP0:	
+	LACL	CBEEP_COMMAND		;
+	SAH	CONF
+
+INT_BIOS_START_BEEP_END:	
+	LAC	EVENT		;SET flag(bit5)
+	ORK	0X020
+	SAH	EVENT
+
+
+	RET
+;---
+INT_BIOS_START_PLAY_TOTAL:
+	LAC	SYSTMP0
+	ORL	0X2000
+	SAH	CONF
+	BS	B1,INT_BIOS_START_VP_FLAG
+;---
+INT_BIOS_START_PLAY_NEW:
+	LAC	SYSTMP0
+	ORL	0X2400
+	SAH	CONF
+	BS	B1,INT_BIOS_START_VP_FLAG
+;---
+INT_BIOS_START_VOP:
+	LAC	SYSTMP0
+	ORL	0XB000
+	SAH	CONF
+INT_BIOS_START_VP:
+	
+INT_BIOS_START_VP_FLAG:
+	LAC	EVENT		;SET flag(bit6)
+	ORK	0X040
+	SAH	EVENT
+
+	RET
+;-------------------------------------------------------------------------------
+.END

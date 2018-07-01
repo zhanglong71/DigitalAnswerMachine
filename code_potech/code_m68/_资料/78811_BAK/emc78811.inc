@@ -1,0 +1,685 @@
+/*************************************************
+	filename:	emc78811.inc
+	creator:	范学明 2007.8.31
+
+说明：
+1.  本文件用于emc78911芯片
+2.  本文件主要包含定义部分和指令部分
+3.  定义部分为一些主要寄存器的定义和主要常数定义
+4.  指令部分为宏汇编编写指令，扩展了基本指令，
+    分为寻址指令、位操作指令、数据操作指令、算术运算和逻辑运算指令。
+*************************************************/
+
+
+
+; 寄存器定义
+
+_IAR	==	0
+_TCC	==	1
+_PC	==	2
+_STATUS	==	3
+_RAM	==	4
+_RSR	==	4
+_PAGE	==	5
+_PPSR	==	5
+_P6	==	6
+_P7	==	7
+_P8	==	8
+_P9	==	9
+_FSK	==	10
+_FSR	==	10
+_DTMF	==	11
+_ADDR	==	12
+_DATA	==	13
+_LCD	==	14
+_WDT	==	14
+_ISR	==	15
+
+_R0	==	0
+_R1	==	1
+_R2	==	2
+_R3	==	3
+_R4	==	4
+_R5	==	5
+_R6	==	6
+_R7	==	7
+_R8	==	8
+_R9	==	9
+_RA	==	10
+_RB	==	11
+_RC	==	12
+_RD	==	13
+_RE	==	14
+_RF	==	15
+
+R0	==	0
+R1	==	1
+R2	==	2
+R3	==	3
+R4	==	4
+R5	==	5
+R6	==	6
+R7	==	7
+R8	==	8
+R9	==	9
+RA	==	10
+RB	==	11
+RC	==	12
+RD	==	13
+RE	==	14
+RF	==	15
+
+_IOC5	==	5
+_IOC6	==	6
+_IOC7	==	7
+_IOC8	==	8
+_IOC9	==	9
+_IOCA	==	10
+_IOCB	==	11
+_IOCC	==	12
+_IOCD	==	13
+_IOCE	==	14
+_IOCF	==	15
+
+
+; 位定义
+C	==	0
+DC	==	1
+Z	==	2
+P	==	3
+T	==	4
+PG	==	6
+
+
+; 常数定义
+NULL	==	0
+FALSE	==	0
+TRUE	==	1
+
+
+
+/*************************************************
+扩展指令
+利用宏汇编编写的指令，后面注释有指令的运行周期
+*************************************************/
+
+; 数据指令
+DB	MACRO	DATA1
+	RETL	@DATA1
+	ENDM
+
+DB	MACRO	DATA1,DATA2
+	RETL	@DATA1
+	RETL	@DATA2
+	ENDM
+
+DB	MACRO	DATA1,DATA2,DATA3
+	RETL	@DATA1
+	RETL	@DATA2
+	RETL	@DATA3
+	ENDM
+
+DB	MACRO	DATA1,DATA2,DATA3,DATA4
+	RETL	@DATA1
+	RETL	@DATA2
+	RETL	@DATA3
+	RETL	@DATA4
+	ENDM
+
+DB	MACRO	DATA1,DATA2,DATA3,DATA4,DATA5
+	RETL	@DATA1
+	RETL	@DATA2
+	RETL	@DATA3
+	RETL	@DATA4
+	RETL	@DATA5
+	ENDM
+
+DB	MACRO	DATA1,DATA2,DATA3,DATA4,DATA5,DATA6
+	RETL	@DATA1
+	RETL	@DATA2
+	RETL	@DATA3
+	RETL	@DATA4
+	RETL	@DATA5
+	RETL	@DATA6
+	ENDM
+
+MTBL	MACRO
+	TBL
+	MESSAGE	"ATTENTION(MTBL): Please check the address!"
+	ENDM
+
+
+; 寻址指令
+
+PAGE	MACRO	#ADDR			; C1
+	IF	ADDR < 0x4000
+		PAGE	(ADDR/0x400)
+	ELSE
+		MESSAGE	"WARRING(PAGE): Out of program memory!"
+	ENDIF
+	ENDM
+
+BANK	MACRO	NUM			; C2
+	IF	NUM == 0
+		BC	_RAM,6
+		BC	_RAM,7
+	ELSEIF	NUM == 1
+		BS	_RAM,6
+		BC	_RAM,7
+	ELSEIF	NUM == 2
+		BC	_RAM,6
+		BS	_RAM,7
+	ELSEIF	NUM == 3
+		BS	_RAM,6
+		BS	_RAM,7
+	ELSE
+		MESSAGE	"WARRING(BANK): Don't have specify bank!"
+	ENDIF
+	ENDM
+
+
+BLOCK	MACRO	NUM			; C2
+	IFDEF	VALUE_IOCA
+		IF	NUM < 10
+			MOV	A,@((NUM<<1)+VALUE_IOCA)
+			IOW	_IOCA
+		ELSE
+			MESSAGE	"WARRING(BLOCK): Don't have specify bank!"
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(BLOCK): 'VALUE_IOCA' not define!"
+	ENDIF
+	ENDM
+
+LCALL	MACRO	ADDR			; C3
+	IF	ADDR < 0x4000
+		PAGE	#ADDR
+		CALL	(ADDR%0x400)
+		PAGE	#($)
+	ELSE
+		MESSAGE	"WARRING(LCALL): Out of program memory!"
+	ENDIF
+	ENDM
+
+;CALL	MACRO	#ADDR			; C1/C3
+;	IF	ADDR < 0x4000
+;		IF	($/0x400) == (ADDR/0x400)
+;			CALL	(ADDR%0x400)
+;		ELSE
+;			LCALL	ADDR
+;		ENDIF
+;	ELSE
+;		MESSAGE	"WARRING(CALL): Out of program memory!"
+;	ENDIF
+;	ENDM
+
+LJMP	MACRO	ADDR			; C2
+	IF	ADDR < 0x4000
+		PAGE	#ADDR
+		JMP	(ADDR%0x400)
+	ELSE
+		MESSAGE	"WARRING(LJMP): Out of program memory!"
+	ENDIF
+	ENDM
+
+;JMP	MACRO	#ADDR			; C1/C2
+;	IF	ADDR < 0x4000
+;		IF	($/0x400) == (ADDR/0x400)
+;			JMP	(ADDR%0x400)
+;		ELSE
+;			LJMP	ADDR
+;		ENDIF
+;	ELSE
+;		MESSAGE "WARRING(JMP): Out of program memory!"
+;	ENDIF
+;	ENDM
+
+JPZ	MACRO	ADDR			; C2
+	IF	ADDR < 0x4000
+		JBC	_STATUS,Z
+		JMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(JPZ): Out of program memory!"
+	ENDIF
+	ENDM
+
+LJPZ	MACRO	ADDR			; C4
+	IF	ADDR< 0x4000
+		JBS	_STATUS,Z
+		JMP	$+3
+		LJMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(LJPZ): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPZ	MACRO	#ADDR			; C2/C4
+	IF	ADDR < 0x4000
+		IF	($/0x400) == (ADDR/0x400)
+			JPZ	ADDR
+		ELSE
+			LJPZ	ADDR
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(JPZ): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPNZ	MACRO	ADDR			; C2
+	IF	ADDR < 0x4000
+		JBS	_STATUS,Z
+		JMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(JPNZ): Out of program memory!"
+	ENDIF
+	ENDM
+
+LJPNZ	MACRO	ADDR			; C4
+	IF	ADDR< 0x4000
+		JBC	_STATUS,Z
+		JMP	$+3
+		LJMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(LJPNZ): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPNZ	MACRO	#ADDR			; C2/C4
+	IF	ADDR < 0x4000
+		IF	($/0x400) == (ADDR/0x400)
+			JPNZ	ADDR
+		ELSE
+			LJPNZ	ADDR
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(JPNZ): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPC	MACRO	ADDR			; C2
+	IF	ADDR < 0x4000
+		JBC	_STATUS,C
+		JMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(JPC): Out of program memory!"
+	ENDIF
+	ENDM
+
+LJPC	MACRO	ADDR			; C4
+	IF	ADDR< 0x4000
+		JBS	_STATUS,C
+		JMP	$+3
+		LJMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(LJPC): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPC	MACRO	#ADDR			; C2/C4
+	IF	ADDR < 0x4000
+		IF	($/0x400) == (ADDR/0x400)
+			JPC	ADDR
+		ELSE
+			LJPC	ADDR
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(JPC): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPNC	MACRO	ADDR			; C2
+	IF	ADDR < 0x4000
+		JBS	_STATUS,C
+		JMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(JPNC): Out of program memory!"
+	ENDIF
+	ENDM
+
+LJPNC	MACRO	ADDR			; C4
+	IF	ADDR< 0x4000
+		JBC	_STATUS,C
+		JMP	$+3
+		LJMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(LJPNC): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPNC	MACRO	#ADDR			; C2/C4
+	IF	ADDR < 0x4000
+		IF	($/0x400) == (ADDR/0x400)
+			JPNC	ADDR
+		ELSE
+			LJPNC	ADDR
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(JPNC): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPB	MACRO	REG,BIT,ADDR		; C2
+	IF	ADDR< 0x4000
+		JBC	REG,BIT
+		JMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(JPB): Out of program memory!"
+	ENDIF
+	ENDM
+
+LJPB	MACRO	REG,BIT,ADDR		; C4
+	IF	ADDR< 0x4000
+		JBS	REG,BIT
+		JMP	$+3
+		LJMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(LJPB): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPB	MACRO	REG,BIT,#ADDR		; C2/C4
+	IF	ADDR < 0x4000
+		IF	($/0x400) == (ADDR/0x400)
+			JPB	REG,BIT,ADDR
+		ELSE
+			LJPB	REG,BIT,ADDR
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(JPB): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPNB	MACRO	REG,BIT,ADDR		; C2
+	IF	ADDR< 0x4000
+		JBS	REG,BIT
+		JMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(JPNB): Out of program memory!"
+	ENDIF
+	ENDM
+
+LJPNB	MACRO	REG,BIT,ADDR		; C4
+	IF	ADDR< 0x4000
+		JBC	REG,BIT
+		JMP	$+3
+		LJMP	ADDR
+	ELSE
+		MESSAGE	"WARRING(LJPNB): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPNB	MACRO	REG,BIT,#ADDR		; C2/C4
+	IF	ADDR < 0x4000
+		IF	($/0x400) == (ADDR/0x400)
+			JPNB	REG,BIT,ADDR
+		ELSE
+			LJPNB	REG,BIT,ADDR
+		ENDIF
+	ELSE
+		MESSAGE	"WARRING(JPNB): Out of program memory!"
+	ENDIF
+	ENDM
+
+JPS	MACRO	REG1,REG2,ADDR		;	if REG1 < REG2, than jump to ADDR
+	SUBA	REG1,REG2
+	JPNC	ADDR
+	ENDM
+
+JPS	MACRO	REG1,REG2,#ADDR
+	SUBA	REG1,REG2
+	JPNC	#ADDR
+	ENDM
+
+JPNS	MACRO	REG1,REG2,ADDR
+	SUBA	REG1,REG2
+	JPC	ADDR
+	ENDM
+
+JPNS	MACRO	REG1,REG2,#ADDR
+	SUBA	REG1,REG2
+	JPC	#ADDR
+	ENDM
+
+
+
+; ------------------------------------------------
+
+; 位操作指令
+
+SETB	MACRO	BIT			; C1
+	IF	BIT < 8
+		OR	A,@(1<<BIT)
+	ELSE
+		MESSAGE	"WARRING(SETB): Out of bit!"
+	ENDIF
+	ENDM
+
+CLRB	MACRO	BIT			; C1
+	IF	BIT < 8
+		AND	A,@(~(1<<BIT))
+	ELSE
+		MESSAGE	"WARRING(CLRB): Out of bit!"
+	ENDIF
+	ENDM
+
+INVB	MACRO	BIT			; C1
+	IF	BIT < 8
+		XOR	A,@(1<<BIT)
+	ELSE
+		MESSAGE	"WARRING(INVB): Out of bit!"
+	ENDIF
+	ENDM
+
+GETB	MACRO	BIT			; C1
+	IF	BIT < 8
+		AND	A,@(1<<BIT)
+	ELSE
+		MESSAGE	"WARRING(INVB): Out of bit!"
+	ENDIF
+	ENDM
+
+SETB	MACRO	REG,BIT			; C1
+	IF	BIT < 8
+		BS	REG,BIT
+	ELSE
+		MESSAGE	"WARRING(SETB): Out of bit!"
+	ENDIF
+	ENDM
+
+CLRB	MACRO	REG,BIT			; C1
+	IF	BIT < 8
+		BC	REG,BIT
+	ELSE
+		MESSAGE	"WARRING(CLRB): Out of bit!"
+	ENDIF
+	ENDM
+
+INVB	MACRO	REG,BIT			; C2
+	IF	BIT < 8
+		XOR	REG,@(1<<BIT)
+	ELSE
+		MESSAGE	"WARRING(INVB): Out of bit!"
+	ENDIF
+	ENDM
+
+GETB	MACRO	REG,BIT			; C2
+	IF	BIT < 8
+		ANDA	REG,@(1<<BIT)
+	ELSE
+		MESSAGE	"WARRING(GETB): Out of bit!"
+	ENDIF
+	ENDM
+
+CLRC	MACRO				; C1
+	BC	_STATUS,C
+	ENDM
+
+SETC	MACRO				; C1
+	BS	_STATUS,C
+	ENDM
+
+CLRZ	MACRO				; C1
+	BC	_STATUS,Z
+	ENDM
+
+SETZ	MACRO				; C1
+	BS	_STATUS,Z
+	ENDM
+
+
+; ------------------------------------------------
+
+; 数据移动指令
+
+MOV	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	MOV	REG,A
+	ENDM
+
+MOV	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	MOV	REG1,A
+	ENDM
+
+IOR	MACRO	REG,IO_REG		; C2
+	IOR	IO_REG
+	MOV	REG,A
+	ENDM
+
+IOW	MACRO	IO_REG,@VALUE		; C2
+	MOV	A,@VALUE
+	IOW	IO_REG
+	ENDM
+
+IOW	MACRO	IO_REG,REG		; C2
+	MOV	A,REG
+	IOW	IO_REG
+	ENDM
+
+
+; ------------------------------------------------
+
+; 算术运算指令
+
+ADD	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	ADD	REG,A
+	ENDM
+
+ADD	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	ADD	REG1,A
+	ENDM
+
+ADDA	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	ADD	A,REG
+	ENDM
+
+ADDA	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	ADD	A,REG1
+	ENDM
+
+SUB	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	SUB	REG,A
+	ENDM
+
+SUB	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	SUB	REG1,A
+	ENDM
+
+SUBA	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	SUB	A,REG
+	ENDM
+
+SUBA	MACRO	@VALUE,REG		; C2
+	MOV	A,REG
+	SUB	A,@VALUE
+	ENDM
+
+SUBA	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	SUB	A,REG1
+	ENDM
+
+DECZ	MACRO	REG			; C3
+	MOV	A,REG
+	JPZ	$+2
+	DEC	REG
+	ENDM
+
+INCZ	MACRO	REG			; C3
+	MOV	A,REG
+	JPZ	$+2
+	INC	REG
+	ENDM
+
+
+; ------------------------------------------------
+
+; 逻辑运算指令
+
+AND	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	AND	REG,A
+	ENDM
+
+AND	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	AND	REG1,A
+	ENDM
+
+ANDA	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	AND	A,REG
+	ENDM
+
+ANDA	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	AND	A,REG1
+	ENDM
+
+OR	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	OR	REG,A
+	ENDM
+
+OR	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	OR	REG1,A
+	ENDM
+
+ORA	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	OR	A,REG
+	ENDM
+
+ORA	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	OR	A,REG1
+	ENDM
+
+XOR	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	XOR	REG,A
+	ENDM
+
+XOR	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	XOR	REG1,A
+	ENDM
+
+XORA	MACRO	REG,@VALUE		; C2
+	MOV	A,@VALUE
+	XOR	A,REG
+	ENDM
+
+XORA	MACRO	REG1,REG2		; C2
+	MOV	A,REG2
+	XOR	A,REG1
+	ENDM
+

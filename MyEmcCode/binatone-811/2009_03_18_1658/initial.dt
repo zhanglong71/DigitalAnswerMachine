@@ -1,0 +1,427 @@
+
+INITMCU:
+	MOV	_FSR,@(0x70)
+	DISI
+	WDTC
+	CLR	_STATUS
+	CLR	_RSR
+	
+	CALL	INITREG
+	CALL	INITCIDRAM
+	CALL	INITPORT
+	
+	LCALL	DELAY_100MS	;Reset DSP
+	
+	CALL	INITINTERMIT
+	CALL	InitData
+	CALL	InitLcd
+	
+	BS	SYS_FLAG,0
+	
+	MOV	_RF,@(0x00)
+;---initial MCU over then initial DSP
+	RESET_DSP_H
+	LCALL	DELAY_100MS
+	
+	ENI
+;---Get DSP-BIOS-Version
+	BANK	3
+	PAGE	#(GET_BIOS1VER)
+	CALL	GET_BIOS1VER
+	MOV	B3_1BIOSVER,TEMP1
+	MOV	B3_2BIOSVER,TEMP0
+	PAGE	#(GET_BIOS2VER)
+	CALL	GET_BIOS2VER
+	MOV	B3_3BIOSVER,TEMP1
+	MOV	B3_4BIOSVER,TEMP0
+
+;---initial DSP-Flash
+	PAGE	#(INITFLASH)
+	CALL	INITFLASH
+	PAGE	#(SET_DECLTEL)
+	CALL	SET_DECLTEL
+
+;---init DSP - parameter
+	PAGE	#(GET_FLASHDATA)
+	CALL	GET_FLASHDATA
+;---
+;???????????????????????????????????????
+/*
+	MOV	A,@CGROUP_MISSCID
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	
+	MOV	A,@4
+	PAGE	#(GET_TEL0IDX)
+	CALL	GET_TEL0IDX
+	nop
+	nop
+	;MOV	A,@0XFF
+	;PAGE	#(GET_0XE9TELID)
+	;CALL	GET_0XE9TELID
+	;NOP
+	;PAGE	#(VPMSG_CHK)
+	;CALL	VPMSG_CHK
+	;MOV	A,@4
+	;PAGE	#(GET_ONLYID)
+	;CALL	GET_ONLYID
+	;NOP
+	;NOP
+*/
+;???????????????????????????????????????
+;---Read idx-table
+	PAGE	#(IDXTAB_READ)
+	CALL	IDXTAB_READ
+;---
+	PAGE	#(SET_INITTEL0IDX)
+	CALL	SET_INITTEL0IDX
+	PAGE	#(VPMSG_REALDEL)
+	CALL	VPMSG_REALDEL
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+;---
+	PAGE	#(INITVOXLEVEL)
+	CALL	INITVOXLEVEL	
+	CALL	SET_DSPRAM
+	CALL	INIT_DENOISELEVEL
+	CALL	INITCODECPOWERON	;Power On
+	CALL	INIT_ENABLEDAC		;Enable DAC
+	CALL	SET_VOXLEVEL
+;---
+	PAGE	#(SET_DAM_MICGAIN)
+	CALL	SET_DAM_MICGAIN
+	CALL	SET_DAM_AD0GAIN
+	CALL	SET_DAM_AD1GAIN
+	CALL	SET_DAM_SPKVOL
+	CALL	SET_DAM_LNEVOL
+	PAGE	#($)
+	
+	CALL	InitLcd
+
+	RETI
+;-------------------------------------------------------------------------------
+INITCIDRAM:			;clear all CID-RAM(10 blocks,255byte/block)
+	CLR	COUNT
+INITCIDRAM_LOOP:
+	RLCA	COUNT
+	AND	A,@(0x1e)
+	ADD	A,@(VALUE_IOCA)
+	IOW	_IOCA
+	CLR	_RC
+INITCIDRAM_LOOP1:
+	CLR	_RD
+	DEC	_RC
+	JPNZ	INITCIDRAM_LOOP1
+	INC	COUNT
+	SUBA	COUNT,@(10)
+	JPNZ	INITCIDRAM_LOOP
+	BLOCK	0
+	RET
+;-------------------------------------------------------------------------------
+INITREG:			;clear all data-RAM(4 banks,32byte/bank)
+	MOV	_RSR,@(0x10)
+INITREG_LOOP:			;0x10...0x1f
+	CLR	_R0
+	INC	_RSR
+	SUBA	_RSR,@(0x20)
+	JPNZ	INITREG_LOOP
+INITREG_LOOP1:
+	CLR	_R0
+	INC	_RSR
+	ANDA	_RSR,@(0X1F)
+	JPNZ	INITREG_LOOP1	;
+	MOV	A,_RSR
+	JPZ	INITREG_RET
+	ADD	_RSR,@(0X20)
+	JMP	INITREG_LOOP1
+INITREG_RET:
+	RET
+;-------------------------------------------------------------------------------
+INITPORT:
+	IOW	_IOCA,@0		; p8 for normal IO port, block 0
+	IOW	_IOCE,@(0x3c)		; p9 for normal IO prot, P6 for common output port, Lcd contrast
+	IOW	_IOC6,@(0xff)		; p6 for input
+	IOW	_IOC7,@(0xff)		; p7.7=SDA,All another for input
+	IOW	_IOC8,@(0x80)
+	IOW	_IOC9,@(0x0E)
+
+	MOV	_P7,@(0xff)
+	MOV	_P8,@(0x2D)
+	MOV	_P9,@(0x83)
+	IOW	_IOCD,@(0x00)
+
+	RET
+
+InitIntermit:
+	IOPAGE	1
+	IOW	_IOCB,@(0x00)
+	IOW	_IOCC,@(0xdf)
+	IOW	_IOCE,@(0x0C)
+	IOPAGE	0
+	MOV	A,@(0x25)
+	CONTW
+	MOV	_TCC,@(0x00)
+	IOW	_IOCF,@(0x71)
+	RET
+
+InitData:
+
+	BANK	0
+
+	CLR	B0_SEC_REG
+	MOV	B0_MIN_REG,@(DEFAULT_MINUTE)
+	MOV	B0_HOUR_REG,@(DEFAULT_HOUR)
+	MOV	B0_DAY_REG,@(DEFAULT_DAY)
+	MOV	B0_MON_REG,@(DEFAULT_MONTH)
+	MOV	B0_YEAR_REG,@(DEFAULT_YEAR)
+	MOV	B0_WEEK_REG,@DEFAULT_WEEK
+
+	BANK	1
+	MOV	B1_CONTRAST,@DEFAULT_CONTRAST
+	MOV	B1_RING_NUM,@((DEFAULT_MSGLEN<<4)+DEFAULT_RING)
+
+	MOV	B1_12PSWORD,@((DEFAULT_PS1<<4)+DEFAULT_PS2)
+	MOV	B1_34PSWORD,@((DEFAULT_PS3<<4)+DEFAULT_PS4)
+
+	;BANK	1
+	MOV	A,B1_RING_NUM
+	AND	A,@0X0F
+	BANK	2
+	MOV	B2_RING_ID,A
+	MOV	B2_POLE_TMR,@0X80
+
+	MOV	A,@0XFF
+	MOV	B2_KEY1_GET,A
+	MOV	B2_KEY2_GET,A
+	MOV	B2_KEY3_GET,A
+	MOV	B2_KEY4_GET,A
+	MOV	B2_KEY1_BAK,A
+	MOV	B2_KEY2_BAK,A
+	MOV	B2_KEY3_BAK,A
+	MOV	B2_KEY4_BAK,A
+
+	;BLOCK	4
+	;CLR	_RC
+	;MOV	_RD,@(0x41)
+	RET
+
+;-------------------------------------------------------------------------------
+
+InitLcd:
+	MOV	_RE,@(0x00)
+	MOV	_RE,@(0x02)
+	MOV	_RE,@(0x06)
+
+	BANK	1
+
+	MOV	A,B1_CONTRAST
+	LCALL	SETLCDCONTRAST
+;-------
+INITLCD_BLANK:
+	CLR	COUNT
+INITLCD_BLANK_LOOP:
+	IOW	_IOCB,COUNT
+	IOW	_IOCC,@(0X00)
+	INC	COUNT
+	SUBA	COUNT,@(128)
+	JPNZ	INITLCD_BLANK_LOOP
+;---
+	RET
+;-------------------------------------------------------------------------------
+INITFLASH:		;Command => Respond 118ms
+	BLOCK	1
+	BANK	2
+;---Initial flash
+	JBS	B2_KEY1_GET,3		;stop
+	JBC	B2_KEY2_GET,3		;del
+	JMP	INITFLASH_NORMAL
+	jmp	FORMATFLASH
+INITFLASH_NORMAL:
+	MOV	TEMP0,@CMODE9L|2
+	MOV	TEMP1,@CMODE9H
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	JPB	TEMP1,0,INITFLASH_OK
+FORMATFLASH:
+	MOV	TEMP0,@CMODE9L|1
+	MOV	TEMP1,@CMODE9H
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	JPB	TEMP1,0,INITFLASH_OK
+INITDSP_FLASH_BAD:	
+	JMP	FORMATFLASH
+INITFLASH_OK:
+
+	RET
+;-------------------------------------------------------------------------------
+MODE9_LON:		;0x9048/0x9248
+	MOV	TEMP0,@CMODE9L|(1<<3)
+	MOV	TEMP1,@CMODE9H
+DSPINIT_DOIIC:
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	RET
+MODE9_LOFF:		;0x9040
+	MOV	TEMP0,@CMODE9L
+	MOV	TEMP1,@CMODE9H
+	
+	JMP	DSPINIT_DOIIC
+;-------------------------------------------------------------------------------
+GET_BIOS1VER:
+;---Get BIOS Version 1'th Word
+	MOV	TEMP0,@0XA0
+	MOV	TEMP1,@0X5E
+	
+	JMP	DSPINIT_DOIIC
+;-------------------------------------------------------------------------------
+GET_BIOS2VER:
+;---Get BIOS Version 1'th Word
+	MOV	TEMP0,@0XA1
+	MOV	TEMP1,@0X5E
+	
+	JMP	DSPINIT_DOIIC
+;-------------------------------------------------------------------------------
+SET_DSPRAM:
+;---Set DSP internal data RAM for De-noise
+	MOV	TEMP0,@0XA2
+	MOV	TEMP1,@0X5E
+	
+	JMP	DSPINIT_DOIIC
+;-------------------------------------------------------------------------------
+INIT_DENOISELEVEL:
+;---Set De-noise level
+	MOV	TEMP2,@CDENOISE_LEVEL
+	CLR	TEMP3
+
+	MOV	TEMP0,@0X47
+	MOV	TEMP1,@0X5F
+	
+DSPINIT_DOIIC4B:	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND4B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	RET
+;-------------------------------------------------------------------------------
+INITVOXLEVEL:
+;---VOX level
+	MOV	TEMP0,@CVOX_LEVEL
+	MOV	TEMP1,@0XD7
+	
+	JMP	DSPINIT_DOIIC
+;-------------------------------------------------------------------------------
+INITCODECPOWERON:
+;---AD0,AD1,DA(SPK-drive,LINE-drive) power on
+	MOV	TEMP0,@0X1C
+	MOV	TEMP1,@0X5E
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	RET
+INIT_ENABLEDAC:
+;---Enable DAC-1/DAC-0
+	MOV	A,@(5<<3)
+	JBS	SYS_FLAG,3	;Check Compression Rate
+	MOV	A,@(1<<3)
+	OR	A,@0X06
+	MOV	TEMP0,A	
+	
+	MOV	TEMP1,@0XD1
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	RET
+SET_VOXLEVEL:
+;---VOX-level
+	MOV	TEMP0,@CVOX_LEVEL
+	MOV	TEMP1,@0XD7
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	RET
+
+;---------------------------------------
+GET_FLASHDATA:
+	MOV	A,@CGROUP_DATT
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	LCALL	GET_TELT
+	MOV	A,TEMP0
+	JPZ	GET_FLASHDATA_END
+	MOV	B1_MSG_ID,A
+;---Read data	
+	MOV	OFFSET_D,@DATA_ZONE_START
+GET_FLASHDATA_LOOP:
+	MOV	A,B1_MSG_ID
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	GET_FLASHDATA_LOOP
+	LCALL	DAT_READ_STOP
+;---Load the parameter
+	BANK	1
+;-
+	MOV	_RC,@DATA_ZONE_START
+	MOV	A,_RD
+	MOV	B1_LANGUAGE,A	;Byte1
+;-	
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_FLASH,A	;Byte2
+;-	
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_CONTRAST,A	;Byte3
+;-	
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_RING_NUM,A	;Byte4
+;-	
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_12PSWORD,A	;Byte5
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_34PSWORD,A	;Byte6
+;-
+	INC	_RC
+	MOV	A,_RD
+	MOV	SYS_FLAG,A	;Byte7(HD)
+;-
+	INC	_RC
+	MOV	A,_RD
+	MOV	DAM_FLAG,A	;Byte8(ON/OFF - OGM1/2)
+GET_FLASHDATA_END:
+	RET
+;-------------------------------------------------------------------------------
+

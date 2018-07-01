@@ -1,0 +1,1127 @@
+
+ORG	0x3800
+
+TabString_null:
+	TBL
+	RETL	@110
+	RETL	@117
+	RETL	@108
+	RETL	@108
+	RETL	@0
+
+TabString_total:
+	TBL
+	RETL	@116
+	RETL	@111
+	RETL	@116
+	RETL	@97
+	RETL	@108
+	RETL	@0
+
+TabString_new:
+	TBL
+	RETL	@110
+	RETL	@101
+	RETL	@119
+	RETL	@0
+
+TabString_number:
+	TBL
+	RETL	@110
+	RETL	@117
+	RETL	@109
+	RETL	@98
+	RETL	@101
+	RETL	@114
+	RETL	@0
+
+TabString_PreHFdial:
+	TBL
+	RETL	@80
+	RETL	@114
+	RETL	@101
+	RETL	@45
+	RETL	@72
+	RETL	@70
+	RETL	@32
+	RETL	@100
+	RETL	@105
+	RETL	@97
+	RETL	@108
+	RETL	@0
+
+TabString_NoContent:
+	TBL
+	RETL	@78
+	RETL	@111
+	RETL	@32
+	RETL	@67
+	RETL	@111
+	RETL	@110
+	RETL	@116
+	RETL	@101
+	RETL	@110
+	RETL	@116
+	RETL	@0
+
+TabString_CallList:
+	TBL
+	RETL	@67
+	RETL	@97
+	RETL	@108
+	RETL	@108
+	RETL	@32
+	RETL	@76
+	RETL	@105
+	RETL	@115
+	RETL	@116
+	RETL	@0
+
+TabString_PhoneBook:
+	TBL
+	RETL	@80
+	RETL	@104
+	RETL	@111
+	RETL	@110
+	RETL	@101
+	RETL	@32
+	RETL	@66
+	RETL	@111
+	RETL	@111
+	RETL	@107
+	RETL	@0
+
+TabString_PleaseInput:
+	TBL
+	RETL	@80
+	RETL	@108
+	RETL	@101
+	RETL	@97
+	RETL	@115
+	RETL	@101
+	RETL	@32
+	RETL	@73
+	RETL	@110
+	RETL	@112
+	RETL	@117
+	RETL	@116
+	RETL	@0
+
+TabString_SystemSetting:
+	TBL
+	RETL	@83
+	RETL	@121
+	RETL	@115
+	RETL	@116
+	RETL	@101
+	RETL	@109
+	RETL	@32
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@116
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@0
+
+TabString_DAM:
+	TBL
+	RETL	@68
+	RETL	@65
+	RETL	@77
+	RETL	@0
+
+TabString_TwoWay:
+	TBL
+	RETL	@84
+	RETL	@119
+	RETL	@111
+	RETL	@32
+	RETL	@87
+	RETL	@97
+	RETL	@121
+	RETL	@0
+
+TabString_HighQuality:
+	TBL
+	RETL	@50
+	RETL	@48
+	RETL	@109
+	RETL	@105
+	RETL	@110
+	RETL	@117
+	RETL	@116
+	RETL	@101
+	RETL	@32
+	RETL	@72
+	RETL	@105
+	RETL	@45
+	RETL	@70
+	RETL	@105
+	RETL	@0
+
+TabString_LowQuality:
+	TBL
+	RETL	@53
+	RETL	@48
+	RETL	@109
+	RETL	@105
+	RETL	@110
+	RETL	@117
+	RETL	@116
+	RETL	@101
+	RETL	@32
+	RETL	@76
+	RETL	@111
+	RETL	@119
+	RETL	@32
+	RETL	@113
+	RETL	@108
+	RETL	@116
+	RETL	@0
+
+TabString_Delete:
+	TBL
+	RETL	@68
+	RETL	@101
+	RETL	@108
+	RETL	@101
+	RETL	@116
+	RETL	@101
+	RETL	@63
+	RETL	@0
+
+TabString_BrowsePhonebook:
+	TBL
+	RETL	@66
+	RETL	@114
+	RETL	@111
+	RETL	@119
+	RETL	@115
+	RETL	@101
+	RETL	@32
+	RETL	@80
+	RETL	@104
+	RETL	@111
+	RETL	@110
+	RETL	@101
+	RETL	@98
+	RETL	@111
+	RETL	@111
+	RETL	@107
+	RETL	@0
+
+TabString_EditPhonebook:
+	TBL
+	RETL	@69
+	RETL	@100
+	RETL	@105
+	RETL	@116
+	RETL	@32
+	RETL	@80
+	RETL	@104
+	RETL	@111
+	RETL	@110
+	RETL	@101
+	RETL	@98
+	RETL	@111
+	RETL	@111
+	RETL	@107
+	RETL	@0
+
+TabString_Deleteall:
+	TBL
+	RETL	@68
+	RETL	@101
+	RETL	@108
+	RETL	@101
+	RETL	@116
+	RETL	@101
+	RETL	@32
+	RETL	@97
+	RETL	@108
+	RETL	@108
+	RETL	@0
+
+TabString_Input:
+	TBL
+	RETL	@73
+	RETL	@110
+	RETL	@112
+	RETL	@117
+	RETL	@116
+	RETL	@0
+
+TabString_Again:
+	TBL
+	RETL	@65
+	RETL	@103
+	RETL	@97
+	RETL	@105
+	RETL	@110
+	RETL	@0
+
+TabString_ClockSetting:
+	TBL
+	RETL	@67
+	RETL	@108
+	RETL	@111
+	RETL	@99
+	RETL	@107
+	RETL	@32
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@116
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@0
+
+TabString_PhoneSetting:
+	TBL
+	RETL	@80
+	RETL	@104
+	RETL	@111
+	RETL	@110
+	RETL	@101
+	RETL	@32
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@116
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@0
+
+ORG	0x3900
+
+TabString_RestoreDefault:
+	TBL
+	RETL	@82
+	RETL	@101
+	RETL	@115
+	RETL	@116
+	RETL	@111
+	RETL	@114
+	RETL	@101
+	RETL	@32
+	RETL	@68
+	RETL	@101
+	RETL	@102
+	RETL	@97
+	RETL	@117
+	RETL	@108
+	RETL	@116
+	RETL	@0
+
+TabString_Play:
+	TBL
+	RETL	@80
+	RETL	@108
+	RETL	@97
+	RETL	@121
+	RETL	@0
+
+TabString_Record:
+	TBL
+	RETL	@82
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@0
+
+TabString_Ringmelody:
+	TBL
+	RETL	@82
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@32
+	RETL	@109
+	RETL	@101
+	RETL	@108
+	RETL	@111
+	RETL	@100
+	RETL	@121
+	RETL	@0
+
+TabString_Ringvolume:
+	TBL
+	RETL	@82
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@32
+	RETL	@118
+	RETL	@111
+	RETL	@108
+	RETL	@117
+	RETL	@109
+	RETL	@101
+	RETL	@0
+
+TabString_Areacode:
+	TBL
+	RETL	@65
+	RETL	@114
+	RETL	@101
+	RETL	@97
+	RETL	@32
+	RETL	@99
+	RETL	@111
+	RETL	@100
+	RETL	@101
+	RETL	@0
+
+TabString_Flashtime:
+	TBL
+	RETL	@70
+	RETL	@108
+	RETL	@97
+	RETL	@115
+	RETL	@104
+	RETL	@32
+	RETL	@116
+	RETL	@105
+	RETL	@109
+	RETL	@101
+	RETL	@0
+
+TabString_Pausetime:
+	TBL
+	RETL	@80
+	RETL	@97
+	RETL	@117
+	RETL	@115
+	RETL	@101
+	RETL	@32
+	RETL	@116
+	RETL	@105
+	RETL	@109
+	RETL	@101
+	RETL	@0
+
+TabString_LCDcontrast:
+	TBL
+	RETL	@76
+	RETL	@67
+	RETL	@68
+	RETL	@32
+	RETL	@99
+	RETL	@111
+	RETL	@110
+	RETL	@116
+	RETL	@114
+	RETL	@97
+	RETL	@115
+	RETL	@116
+	RETL	@0
+
+TabString_HFDialing:
+	TBL
+	RETL	@72
+	RETL	@70
+	RETL	@45
+	RETL	@68
+	RETL	@105
+	RETL	@97
+	RETL	@108
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@0
+
+TabString_Memorecord:
+	TBL
+	RETL	@77
+	RETL	@101
+	RETL	@109
+	RETL	@111
+	RETL	@32
+	RETL	@114
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@0
+
+TabString_OGM1record:
+	TBL
+	RETL	@79
+	RETL	@71
+	RETL	@77
+	RETL	@32
+	RETL	@49
+	RETL	@32
+	RETL	@114
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@0
+
+TabString_OGM2record:
+	TBL
+	RETL	@79
+	RETL	@71
+	RETL	@77
+	RETL	@32
+	RETL	@50
+	RETL	@32
+	RETL	@114
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@0
+
+TabString_MUTE:
+	TBL
+	RETL	@77
+	RETL	@85
+	RETL	@84
+	RETL	@69
+	RETL	@0
+
+TabString_BLANK:
+	TBL
+	RETL	@32
+	RETL	@32
+	RETL	@32
+	RETL	@32
+	RETL	@32
+	RETL	@32
+	RETL	@32
+	RETL	@32
+	RETL	@0
+
+TabString_Jingle:
+	TBL
+	RETL	@74
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@108
+	RETL	@101
+	RETL	@0
+
+TabString_BabyElephant:
+	TBL
+	RETL	@66
+	RETL	@97
+	RETL	@98
+	RETL	@121
+	RETL	@32
+	RETL	@69
+	RETL	@108
+	RETL	@101
+	RETL	@112
+	RETL	@104
+	RETL	@97
+	RETL	@110
+	RETL	@116
+	RETL	@0
+
+TabString_Bonanza:
+	TBL
+	RETL	@66
+	RETL	@111
+	RETL	@110
+	RETL	@97
+	RETL	@110
+	RETL	@122
+	RETL	@97
+	RETL	@0
+
+TabString_Choopeta:
+	TBL
+	RETL	@67
+	RETL	@104
+	RETL	@111
+	RETL	@111
+	RETL	@112
+	RETL	@101
+	RETL	@116
+	RETL	@97
+	RETL	@0
+
+TabString_ForElise:
+	TBL
+	RETL	@70
+	RETL	@111
+	RETL	@114
+	RETL	@32
+	RETL	@69
+	RETL	@108
+	RETL	@105
+	RETL	@115
+	RETL	@101
+	RETL	@0
+
+TabString_MarcheTurque:
+	TBL
+	RETL	@77
+	RETL	@97
+	RETL	@114
+	RETL	@99
+	RETL	@104
+	RETL	@101
+	RETL	@32
+	RETL	@84
+	RETL	@117
+	RETL	@114
+	RETL	@113
+	RETL	@117
+	RETL	@101
+	RETL	@0
+
+ORG	0x3a00
+
+TabString_ALittleNight:
+	TBL
+	RETL	@65
+	RETL	@32
+	RETL	@76
+	RETL	@105
+	RETL	@116
+	RETL	@116
+	RETL	@108
+	RETL	@101
+	RETL	@32
+	RETL	@78
+	RETL	@105
+	RETL	@103
+	RETL	@104
+	RETL	@116
+	RETL	@0
+
+TabString_SmokeOnWater:
+	TBL
+	RETL	@83
+	RETL	@109
+	RETL	@111
+	RETL	@107
+	RETL	@101
+	RETL	@32
+	RETL	@79
+	RETL	@110
+	RETL	@32
+	RETL	@87
+	RETL	@97
+	RETL	@116
+	RETL	@101
+	RETL	@114
+	RETL	@0
+
+TabString_TheEntertainer:
+	TBL
+	RETL	@84
+	RETL	@104
+	RETL	@101
+	RETL	@32
+	RETL	@69
+	RETL	@110
+	RETL	@116
+	RETL	@101
+	RETL	@114
+	RETL	@116
+	RETL	@97
+	RETL	@105
+	RETL	@110
+	RETL	@101
+	RETL	@114
+	RETL	@0
+
+TabString_FinalCountdown:
+	TBL
+	RETL	@70
+	RETL	@105
+	RETL	@110
+	RETL	@97
+	RETL	@108
+	RETL	@32
+	RETL	@67
+	RETL	@111
+	RETL	@117
+	RETL	@110
+	RETL	@116
+	RETL	@100
+	RETL	@111
+	RETL	@119
+	RETL	@110
+	RETL	@0
+
+TabString_TwinPeaks:
+	TBL
+	RETL	@84
+	RETL	@119
+	RETL	@105
+	RETL	@110
+	RETL	@32
+	RETL	@80
+	RETL	@101
+	RETL	@97
+	RETL	@107
+	RETL	@115
+	RETL	@0
+
+TabString_ZorbaLeGrec:
+	TBL
+	RETL	@90
+	RETL	@111
+	RETL	@114
+	RETL	@98
+	RETL	@97
+	RETL	@32
+	RETL	@76
+	RETL	@101
+	RETL	@32
+	RETL	@71
+	RETL	@114
+	RETL	@101
+	RETL	@99
+	RETL	@0
+
+TabString_OFF:
+	TBL
+	RETL	@79
+	RETL	@70
+	RETL	@70
+	RETL	@0
+
+TabString_NoMessage:
+	TBL
+	RETL	@78
+	RETL	@111
+	RETL	@32
+	RETL	@77
+	RETL	@101
+	RETL	@115
+	RETL	@115
+	RETL	@97
+	RETL	@103
+	RETL	@101
+	RETL	@0
+
+TabString_Pause:
+	TBL
+	RETL	@80
+	RETL	@97
+	RETL	@117
+	RETL	@115
+	RETL	@101
+	RETL	@0
+
+TabString_OGM:
+	TBL
+	RETL	@79
+	RETL	@71
+	RETL	@77
+	RETL	@0
+
+TabString_Memo:
+	TBL
+	RETL	@77
+	RETL	@101
+	RETL	@109
+	RETL	@111
+	RETL	@0
+	
+TabString_InputNumber:
+	TBL
+	RETL	@73
+	RETL	@110
+	RETL	@112
+	RETL	@117
+	RETL	@116
+	RETL	@32
+	RETL	@78
+	RETL	@117
+	RETL	@109
+	RETL	@98
+	RETL	@101
+	RETL	@114
+	RETL	@0
+
+TabString_InputName:
+	TBL
+	RETL	@73
+	RETL	@110
+	RETL	@112
+	RETL	@117
+	RETL	@116
+	RETL	@32
+	RETL	@78
+	RETL	@97
+	RETL	@109
+	RETL	@101
+	RETL	@0
+
+TabString_SelectRingTone:
+	TBL
+	RETL	@83
+	RETL	@101
+	RETL	@108
+	RETL	@101
+	RETL	@99
+	RETL	@116
+	RETL	@32
+	RETL	@82
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@32
+	RETL	@84
+	RETL	@111
+	RETL	@110
+	RETL	@101
+	RETL	@0
+
+TabString_DateSetting:
+	TBL
+	RETL	@68
+	RETL	@97
+	RETL	@116
+	RETL	@101
+	RETL	@32
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@116
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@0
+
+TabString_DAMSetting:
+	TBL
+	RETL	@68
+	RETL	@65
+	RETL	@77
+	RETL	@32
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@116
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@0
+
+TabString_RecorderON:
+	TBL
+	RETL	@82
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@101
+	RETL	@114
+	RETL	@32
+	RETL	@79
+	RETL	@78
+	RETL	@0
+
+TabString_RecorderOFF:
+	TBL
+	RETL	@82
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@101
+	RETL	@114
+	RETL	@32
+	RETL	@79
+	RETL	@70
+	RETL	@70
+	RETL	@0
+
+TabString_Setringdelay:
+	TBL
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@32
+	RETL	@114
+	RETL	@105
+	RETL	@110
+	RETL	@103
+	RETL	@32
+	RETL	@100
+	RETL	@101
+	RETL	@108
+	RETL	@97
+	RETL	@121
+	RETL	@0
+
+ORG	0x3b00
+
+TabString_Setremotecode:
+	TBL
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@32
+	RETL	@114
+	RETL	@101
+	RETL	@109
+	RETL	@111
+	RETL	@116
+	RETL	@101
+	RETL	@32
+	RETL	@99
+	RETL	@111
+	RETL	@100
+	RETL	@101
+	RETL	@0
+
+TabString_Setrecordtime:
+	TBL
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@32
+	RETL	@114
+	RETL	@101
+	RETL	@99
+	RETL	@111
+	RETL	@114
+	RETL	@100
+	RETL	@32
+	RETL	@116
+	RETL	@105
+	RETL	@109
+	RETL	@101
+	RETL	@0
+
+TabString_SetOGM:
+	TBL
+	RETL	@83
+	RETL	@101
+	RETL	@116
+	RETL	@32
+	RETL	@79
+	RETL	@71
+	RETL	@77
+	RETL	@0
+
+
+TabString_Sun:
+	TBL
+	RETL	@83
+	RETL	@117
+	RETL	@110
+	RETL	@0
+
+TabString_Mon:
+	TBL
+	RETL	@77
+	RETL	@111
+	RETL	@110
+	RETL	@0
+
+TabString_Tue:
+	TBL
+	RETL	@84
+	RETL	@117
+	RETL	@101
+	RETL	@0
+
+TabString_Wed:
+	TBL
+	RETL	@87
+	RETL	@101
+	RETL	@100
+	RETL	@0
+
+TabString_Thu:
+	TBL
+	RETL	@84
+	RETL	@104
+	RETL	@117
+	RETL	@0
+
+TabString_Fri:
+	TBL
+	RETL	@70
+	RETL	@114
+	RETL	@105
+	RETL	@0
+
+TabString_Sat:
+	TBL
+	RETL	@83
+	RETL	@97
+	RETL	@116
+	RETL	@0
+
+TabString_memoryset:
+	TBL
+	RETL	@109
+	RETL	@101
+	RETL	@109
+	RETL	@111
+	RETL	@114
+	RETL	@121
+	RETL	@32
+	RETL	@115
+	RETL	@101
+	RETL	@116
+	RETL	@0
+
+TabString_Successful:
+	TBL
+	RETL	@83
+	RETL	@117
+	RETL	@99
+	RETL	@99
+	RETL	@101
+	RETL	@115
+	RETL	@115
+	RETL	@102
+	RETL	@117
+	RETL	@108
+	RETL	@33
+	RETL	@0
+
+TabString_NewCall:
+	TBL
+	RETL	@78
+	RETL	@101
+	RETL	@119
+	RETL	@32
+	RETL	@67
+	RETL	@97
+	RETL	@108
+	RETL	@108
+	RETL	@0
+
+TabString_ICM:
+	TBL
+	RETL	@73
+	RETL	@67
+	RETL	@77
+	RETL	@0
+
+TabString_Remote:
+	TBL
+	RETL	@82
+	RETL	@101
+	RETL	@109
+	RETL	@111
+	RETL	@116
+	RETL	@101
+	RETL	@0
+
+TabString_Answered:
+	TBL
+	RETL	@65
+	RETL	@110
+	RETL	@115
+	RETL	@119
+	RETL	@101
+	RETL	@114
+	RETL	@101
+	RETL	@100
+	RETL	@0
+
+TabString_RingTimes:
+	TBL
+	RETL	@50
+	RETL	@47
+	RETL	@52
+	RETL	@47
+	RETL	@54
+	RETL	@32
+	RETL	@116
+	RETL	@105
+	RETL	@109
+	RETL	@101
+	RETL	@115
+	RETL	@0
+
+TabString_ToPhonebook:
+	TBL
+	RETL	@84
+	RETL	@111
+	RETL	@32
+	RETL	@80
+	RETL	@104
+	RETL	@111
+	RETL	@110
+	RETL	@101
+	RETL	@98
+	RETL	@111
+	RETL	@111
+	RETL	@107
+	RETL	@0
+
+TabString_EndOfList:
+	TBL
+	RETL	@69
+	RETL	@110
+	RETL	@100
+	RETL	@32
+	RETL	@111
+	RETL	@102
+	RETL	@32
+	RETL	@108
+	RETL	@105
+	RETL	@115
+	RETL	@116
+	RETL	@0
+
+TabString_Private:
+	TBL
+	RETL	@80
+	RETL	@114
+	RETL	@105
+	RETL	@118
+	RETL	@97
+	RETL	@116
+	RETL	@101
+	RETL	@0
+
+TabString_WrongMessage:
+	TBL
+	RETL	@87
+	RETL	@114
+	RETL	@111
+	RETL	@110
+	RETL	@103
+	RETL	@32
+	RETL	@109
+	RETL	@101
+	RETL	@115
+	RETL	@115
+	RETL	@97
+	RETL	@103
+	RETL	@101
+	RETL	@0
+
+TabString_Unavallable:
+	TBL
+	RETL	@85
+	RETL	@110
+	RETL	@97
+	RETL	@118
+	RETL	@97
+	RETL	@108
+	RETL	@108
+	RETL	@97
+	RETL	@98
+	RETL	@108
+	RETL	@101
+	RETL	@0
+

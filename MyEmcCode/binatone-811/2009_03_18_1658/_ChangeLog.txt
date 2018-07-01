@@ -1,0 +1,85 @@
+******************************************************************************************
+	zhanglong	2008-11-21 11:16
+Code	:
+MCU	:Emc78811/AT78811
+
+数据存贮空间RAM的分配
+偶数BANK分配给中断,奇数BANK分配给主程序
+******************************************************************************************
+CID-RAM空间的分配
+BLOCK	0 - for LCD display
+
+BLOCK	1 - for command send/receive - (0..5/6,7)
+	  - for tone queue(0x10 for head-pointer/0x11 for tail-pointer/0x12..0x52 for data)	
+	  - !!!Note(4x位置放置事件识别标志,4x+1,2,3位置放置事件参数)
+	  - 事件识别标志定义如下: 0 - reserved(Don`t use this status)
+	  	  		  1 - delay	- (参数4x+1对应时间长度8ms/unit,4x+2,3  reserved)
+	  	  		  2 - play TONE	- (参数4x+1对应时间长度1/16s/unit,4x+2对应频率8/unit,4x+3reserved) - 单音频
+	  	  		  3 - play DTMF	- (参数4x+1对应时间长度8ms/unit,4x+2对应频率,4x+3reserved) 	 - 双音频	  		  
+	  			  4 - play VOP	- (参数4x+1对应VOP index,4x+2,3 reserved)
+	  			  5 - play-new message	- (参数4x+1对应message index,4x+2,3 reserved)
+	  			  6 - play-all message	- (参数4x+1对应message index,4x+2,3 reserved)
+	  			  7 - play-old message	- reserved
+	  - for tel/cid edit/add/dial(0x60.. 0XA0)
+	  - for key queue(0xB0..0xC0)
+
+
+BLOCK	2 CID
+
+BLOCK	3 index-table
+******************************************************************************************
+改索引表部分是数据写入/删除在前，索引表的修改在后
+
+2008-11-13 All display
+
+2008-11-19 可用SPK/MUTE键控制Demo上的LED(GPB6.5.3)on/off
+
+2008-11-20 按play可发BEEP,按STOP停止BEEP;SEND address but no ACK,then try again
+
+2008-11-21 按OGM键可以播放VOP;
+
+2008-11-25 改正Stack overflow造成的错误(SYS_MSG => VP_START => DAM_STOP => SEND2B_COMMAND => IICSTARTADDR => IICSENDBYTE => IICSCL_H => INTERRUPT)
+
+2008-11-27 录音/放音有反应.
+
+2008-12-2 可录可放OGM
+
+2008-12-5 上层显示可正常运转
+
+2008-12-9 MENU菜单OK
+
+2008-12-11 PhoneBook ok
+
+2008-12-19 ring ok
+
+2008-12-23 Receive DTMF ok;PSWORD OK;Enter remote ok;remote;ring_det change
+
+2008-12-24 Btone_chk可用
+
+2008-12-25 改正play之后的显示message信息错
+
+2008-12-29 可正常收到DTMF-CID;可收FSK-CID
+
+2008-12-31 正常FSK Decode
+
+2009-1-2 可连续的收CID;
+
+2009-1-8 保存Menu设置存入Flash
+
+2009-1-12 M1/M2/M3 function when talking
+
+2009-1-15 将显示字符的范围扩大到ASCII
+
+2009-2-5 pbook按字符顺序查看,CID按pbook优先显示姓名,查看后NEW->OLD
+
+2009-2-18 play-CID OK
+
+2009-2-20 DTMF-CID/04/80 ok;但DTMF收不到3,6
+
+2009-2-27 press del&on/off key then power on format flash;
+
+2009-3-12 显示方式与样机相同(month/hour小于10就只用一位表示)
+
+2009-3-13 发现用新的测试用D20bios-2009/3/11应答后正常退出,但D20mcu090119V1.bin却出现initialization(系CPC退出的一串操作后,JMP指令前Page还原所致);调SPK音量;Menu去掉language选择
+
+2009-3-18 打电话时MUTE/XMUTE脚位变化,HS在on/off时SPK_CON_MCU脚位变化

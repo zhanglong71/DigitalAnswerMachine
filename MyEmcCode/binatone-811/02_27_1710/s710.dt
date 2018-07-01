@@ -1,0 +1,644 @@
+ 
+;-------------------------------------------------------------------------------
+INCLUDE	"emc78811.inc"
+INCLUDE	"emc_reg.inc"
+INCLUDE	"CONST.inc"
+INCLUDE	"parameter.inc"
+INCLUDE	"MACRO.inc"
+;-------------------------------------------------------------------------------
+;p6 use for	(p6.0 - p6.7)LCD display(comm8..15)	(output)	
+;		(p6.1 - p6.7)key scan 			(output)
+;p7 use for	(p7.0 - p7.3)key scan 			(input)
+;		p7.4 Hook detect			(input) -  L=working
+;		p7.5 DC detect				(input)
+;		p7.6 DSP_Req				(input)
+;		p7.7 IICDAT				(input)
+;
+;p8 use for	p8.0 IICCLK	 			(output)
+;		p8.1 RESET				(output)
+;		p8.2 XMUTE				(output)
+;		p8.3 MUTE				(output)
+;		p8.4 HFO				(output) - H=working
+;		p8.5 DP					(output) - L=working(pluse/flash)
+;		p8.6 EEP-SCL				(output)
+;		p8.7 EEP-SDA				(I/O)
+;
+;p9 use for	p9.0 NEW-LED 				(output)
+;		p9.1 RING-DET 				(input)
+;		p9.2 RDET1				(input)
+;		p9.3 CPC-DET				(input)
+;		p9.4 MIC-CON-MCU			(output)
+;		p9.5 SPK-CON-MCU			(output)
+;		p9.6 key-scan-enble			(output)
+;		p9.7 HF-LED				(output)
+;-------------------------------------------------------------------------------
+;SYS_FLAG	bit0 = 1/0 - 跳秒
+;		bit1 = 1/O - Handset
+;		bit2 = 1/0 - NLED-BLINK/not 
+;		bit3 = 1/0 - HD  - ON/OFF
+;		bit4 = 1/0 - NEW-CID stor into flash/not - Condition to clean the bit:1.ring fail;2.HF/HS off hook;3.Exit the answer mode
+;		bit5 = 1/0 - reserved
+;		bit6 = 1/0 - reserved
+;		bit7 = 1/0 - reserved
+;	
+;DAM_FLAG	bit7 = 1/0 - new message flag
+;		bit6 = 1/0 - no message flag
+;		bit5 = 1/0 - Flash-full flag
+;		bit4 = 1/0 - new CID flag - the NEW-missed-CID in flash/not
+;		bit3 = 1/0 - OGM 2/1
+;		bit2 = 1/0 - DAM OFF/ON
+;		bit1 = 1/0 - DTMF VAL/not
+;		bit0 = 1/0 - reserved
+;
+;EVENT		bit7 = 1/0	;RECORD(0x1000)/not
+;		bit6 = 1/0 	;PLAY(0x2000/0xB000)/not
+;		bit5 = 1/0 	;BEEP(0x4800)/not
+;		bit4 = 1/0 	;LINE(0x5000)/not
+;		bit3 = 1/0 	;Spkphone(0xC000)/not
+;		bit2 = 1/0 	;reserved
+;		bit1 = 1/0	;call DAM_BIOS is need
+;		bit0 = 1/0 	;reserved
+;-------------------------------------------------------------------------------
+ORG	0x0000
+
+
+ 	JMP	main
+
+ORG	0x0008
+IntBegin:
+	DISI
+;!!!!!!!!!!!!!!!!!!!
+	MOV	INTBUF_ACC,A
+	SWAPA	_RSR
+	BANK	0        	;//save _RSR to 0x3F, _STATUS to 0x3E, INTBUF_PPSR to 0x3D, bank 3
+	MOV	INTBUF_RSR,A
+	SWAPA	_STATUS
+	MOV	INTBUF_STATUS,A
+;!!!!!!!!!!!!!!!!!!!
+	SWAPA	_PPSR
+	MOV	INTBUF_PPSR,A
+	
+	MOV	INTBUF_CIDADDR,_ADDR
+	IOR	_IOCA
+	AND	A,@(0x1e)
+	MOV	INTBUF_CIDBLOCK,A
+;---
+	MOV	A,OLD_RAM
+	MOV	INT_OLD_RAM,A
+
+	
+	PAGE	0
+	
+	JPB	_ISR,1,Int_0
+	JPB	_ISR,2,Int_1
+	JPB	_ISR,3,Int_2
+	JPB	_ISR,7,Int_3
+	JPB	_ISR,6,IntFsk
+	JPB	_ISR,0,IntTcc
+	JPB	_ISR,5,IntCnt2			; 1ms
+	JPB	_ISR,4,IntCnt1			; 用作时钟计时
+
+IntEnd:
+	BANK	0
+;---
+	MOV	A,INT_OLD_RAM
+	MOV	OLD_RAM,A
+
+	IOR	_IOCA
+	AND	A,@(0xe1)
+	OR	A,INTBUF_CIDBLOCK
+	IOW	_IOCA
+	MOV	_ADDR,INTBUF_CIDADDR
+
+	;MOV	_PPSR,INTBUF_PPSR
+	SWAPA	INTBUF_PPSR		;//Users have to note if now it is in bank 3 or not.
+	MOV	_PPSR,A			;//If not, users have to switch to bank 3.
+;!!!!!!!!!!!!!!!!!!!
+	SWAPA	INTBUF_STATUS
+	MOV	_STATUS,A
+	SWAPA	INTBUF_RSR
+	MOV	_RSR,A
+	SWAP	INTBUF_ACC
+	SWAPA	INTBUF_ACC 
+;!!!!!!!!!!!!!!!!!!!
+	RETI
+;-------------------------------------------------------------------------------
+Int_0:
+	MOV	_ISR,@(~(1<<1))
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+Int_1:
+	MOV	_ISR,@(~(1<<2))
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+Int_2:
+	MOV	_ISR,@(~(1<<3))
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+Int_3:
+	MOV	_ISR,@(~(1<<7))
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+IntTcc:
+	MOV	_ISR,@(~(1<<0))
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+IntCnt1:			; (1/16s)
+	MOV	_ISR,@(~(1<<4))
+;---------------------------------------
+	BANK	2
+IntCnt1_RINGTMR:
+	MOV	A,B2_RING_TMR2
+	JPZ	IntCnt1_RINGTMR_1
+	DEC	B2_RING_TMR2	;increase every 1/16s	until 0
+IntCnt1_RINGTMR_1:
+	BANK	0
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	MOV	A,TEMP0
+	MOV	BANK0_TEMP0,A
+	MOV	A,TEMP1
+	MOV	BANK0_TEMP1,A
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+;---------------------------------------
+	INC	B0_TMR		;increase every 1/16s,Don`t set it anywhere
+
+INT_CNT1_RTC:
+	JPNB	SYS_FLAG,0,INT_CNT1_RTC_END	
+
+	MOV	A,B0_TMR
+	AND	A,@0X7
+	JPNZ	INT_CNT1_CALENDAR_END	;OVER 15duty ?
+	
+	MOV	A,@CMSG_RTC
+	LCALL	INT_STOR_MSG
+INT_CNT1_RTC_END:	
+;---------------------------------------
+INT_CNT1_CALENDAR:	
+	MOV	A,B0_TMR
+	AND	A,@0Xf
+	JPNZ	INT_CNT1_CALENDAR_END	;OVER 15duty ?
+;---
+	DATETIME
+INT_CNT1_CALENDAR_END:
+;---------------------------------------
+INT_CNT1_TMR:
+	MOV	A,B0_TMR_TIMER_BAK
+	JPZ	INT_CNT1_TMR_END
+	DEC	B0_TMR_TIMER
+	MOV	A,B0_TMR_TIMER
+	JPNZ	INT_CNT1_TMR_END
+	MOV	A,B0_TMR_TIMER_BAK
+	MOV	B0_TMR_TIMER,A
+	
+	MOV	A,@CMSG_TMR
+	LCALL	INT_STOR_MSG
+INT_CNT1_TMR_END:	
+;-------belows are for vox-detect-----------------------------------------------
+INT_CNT1_VOX:
+	MOV	A,B0_TMR_VOX
+	JPZ	INT_CNT1_VOX_END
+
+	DEC	B0_TMR_VOX
+
+INT_CNT1_VOX_END:
+;-------belows are for ctone-detect-----------------------------------------------
+INT_CNT1_CTONE:
+	MOV	A,B0_TMR_CTONE
+	JPZ	INT_CNT1_CTONE_END
+
+	DEC	B0_TMR_CTONE
+
+INT_CNT1_CTONE_END:
+;-------belows are for btone-detect-----------------------------------------------
+INT_CNT1_BTONE:
+	MOV	A,B0_TMR_BTONE
+	XOR	A,@0XFF			;255
+	JPZ	INT_CNT1_BTONE_END
+
+	INC	B0_TMR_BTONE
+
+INT_CNT1_BTONE_END:
+;-------belows are for btone-detect-----------------------------------------------
+INT_CNT1_NEWLED:
+	JPB	SYS_FLAG,2,INT_CNT1_NEWLED_RECBLINK	;off
+	
+	JPB	DAM_FLAG,2,INT_CNT1_NEWLED_OFF	;off
+	JPNB	DAM_FLAG,7,INT_CNT1_NEWLED_ON	;NEW message
+;---On && NewMessage	
+	MOV	A,B0_TMR
+	AND	A,@0X1F
+	SUB	A,@3
+	JPC	INT_CNT1_NEWLED_ON
+INT_CNT1_NEWLED_OFF:	
+	DAM_NEWLED_H		;LED off
+	JMP	INT_CNT1_NEWLED_END
+INT_CNT1_NEWLED_ON:
+	DAM_NEWLED_L		;LED on
+	JMP	INT_CNT1_NEWLED_END
+INT_CNT1_NEWLED_RECBLINK:	
+	MOV	A,B0_TMR
+	AND	A,@0X1
+	JPNZ	INT_CNT1_NEWLED_END
+	
+	DAM_NEWLED_COM
+INT_CNT1_NEWLED_END:
+;-------belows are for key timer------------------------------------------------
+INT_CNT1_KEY:
+	BANK	2
+	MOV	A,B2_TMR_PLUSE
+	JPZ	INT_CNT1_KEY_END	;0
+
+	DEC	B2_TMR_PLUSE
+
+INT_CNT1_KEY_END:
+;-------belows are for CID timer------------------------------------------------
+INT_CNT1_CIDTMR:
+	BANK	3
+	MOV	A,B3_CidTimer
+	JPZ	INT_CNT1_CIDTMR_END	;0
+
+	DEC	B3_CidTimer
+
+INT_CNT1_CIDTMR_END:
+;-------belows are for for-ring-cnt-----------------------------------------------
+INT_CNT1_RINGCNT:
+	BANK	1
+	MOV	A,B1_RING_NUM
+	AND	A,@0X0F
+	MOV	TEMP0,A
+	
+	BANK	2
+	MOV	A,B2_RING_ID
+	AND	A,@0XF0
+	MOV	B2_RING_ID,A
+
+
+	JPB	_P8,4,INT_CNT1_RINGCNT_0	;at answer/speaker mode
+	JPNB	_P7,4,INT_CNT1_RINGCNT_0	;HS OFF-HOOK
+
+	JPB	DAM_FLAG,2,INT_CNT1_RINGCNT_10	;Ans off
+;---Ans on
+	MOV	A,TEMP0
+	SUB	A,@0X01
+	JPZ	INT_CNT1_TOLLSVAE
+
+	MOV	A,TEMP0
+	OR	B2_RING_ID,A
+	JMP	INT_CNT1_RINGCNT_END
+INT_CNT1_TOLLSVAE:
+
+	MOV	A,@2
+	JBS	DAM_FLAG,7		;New message
+	MOV	A,@4
+	OR	B2_RING_ID,A
+
+	JMP	INT_CNT1_RINGCNT_END
+INT_CNT1_RINGCNT_10:
+	MOV	A,@0X0f
+	OR	B2_RING_ID,A
+	JMP	INT_CNT1_RINGCNT_END
+INT_CNT1_RINGCNT_0:
+	CLR	B2_RING_ID
+
+INT_CNT1_RINGCNT_END:
+;-------------------------------------------------------------------------------	
+	BANK	0
+;-------------------------------------------------------------------------------
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	MOV	A,BANK0_TEMP0
+	MOV	TEMP0,A
+	MOV	A,BANK0_TEMP1
+	MOV	TEMP1,A
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+IntCnt2:			; (1ms)
+	MOV	_ISR,@(~(1<<5))
+
+	IOPAGE	1
+	IOW	_IOCC,@(0x100-32)			; count2(1.024ms)<==> 2^15/(0xff-31)=.2^10
+	IOPAGE	0
+IntCnt2_MONTDC:		;监控DC电源
+;---DC-Power detect
+	;BS	SYS_FLAG,2
+	;JPB	_P7,5,IntCnt2_MONTDC_1
+	;BC	SYS_FLAG,2
+	;RESET_DSP_H
+;IntCnt2_MONTDC_1:
+	
+	BANK	2
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	MOV	A,TEMP0
+	MOV	BANK2_TEMP0,A
+	MOV	A,TEMP1
+	MOV	BANK2_TEMP1,A
+	MOV	A,TEMP2
+	MOV	BANK2_TEMP2,A
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	INC	B2_TMR		;increase every 1ms,Don`t set it anywhere
+;---------------------------------------
+	BS	EVENT,0
+;---------------------------------------
+INT_CNT2_TMR:		;Timer
+	MOV	A,B2_TMR_TIMER_BAK
+	JPZ	INT_CNT2_TMR_END
+	DEC	B2_TMR_TIMER
+	MOV	A,B2_TMR_TIMER
+	JPNZ	INT_CNT2_TMR_END
+	MOV	A,B2_TMR_TIMER_BAK
+	MOV	B2_TMR_TIMER,A
+	
+	MOV	A,@CMSG_TMR2
+	LCALL	INT_STOR_MSG
+INT_CNT2_TMR_END:
+;---------------------------------------
+;The pole com before CID
+;B2_POLE_TMR	bit7 - last status
+;		bit6 - low to high
+;		bit5..0 timer
+;---------------------------------------
+INT_CNT2_POLE:
+	JPB	_P9,2,INT_CNT2_POLE_H
+INT_CNT2_POLE_L:
+	CLR	B2_POLE_TMR
+	JMP	INT_CNT2_POLE_END
+INT_CNT2_POLE_H:
+	JPB	B2_POLE_TMR,7,INT_CNT2_POLE_TMRH	;H => H
+;L => H
+	MOV	B2_POLE_TMR,@0XDF
+
+	JMP	INT_CNT2_POLE_END
+INT_CNT2_POLE_TMRH:
+	JPNB	B2_POLE_TMR,6,INT_CNT2_POLE_END
+	JPNB	_P9,2,INT_CNT2_POLE_L
+	
+	DEC	B2_POLE_TMR
+	
+	MOV	A,B2_POLE_TMR
+	AND	A,@0X3F
+	JPNZ	INT_CNT2_POLE_END
+	
+	MOV	A,@CRDY_CID	;!!!!!!!!
+	LCALL	INT_STOR_MSG
+
+INT_CNT2_POLE_END:
+;---------------------------------------
+INT_CNT2_CPC:			;CPC-det
+	JPNB	_P8,4,INT_CNT2_CPC_1	;DAM/HF working ?
+	JPNB	_P7,4,INT_CNT2_CPC_1	;HS working ?
+	
+	DEC	B2_TMR_CPC
+	
+	MOV	A,B2_TMR_CPC
+	SUB	A,@80
+	JPNC	INT_CNT2_CPC_END
+
+	JPB	_P9,3,INT_CNT2_CPC_0	;CPC-DET H/L
+	
+	MOV	A,B2_TMR_CPC
+	JPNZ	INT_CNT2_CPC_END
+
+	MOV	A,@CMSG_CPC
+	LCALL	INT_STOR_MSG
+
+	;JMP	INT_CNT2_CPC_END
+INT_CNT2_CPC_0:
+	MOV	B2_TMR_CPC,@80
+	JMP	INT_CNT2_CPC_END
+INT_CNT2_CPC_1:
+	MOV	B2_TMR_CPC,@0XFF	
+INT_CNT2_CPC_END:	
+;---------------------------------------
+IntCnt2_1:
+	MOV	A,B2_TMR
+	AND	A,@0X07	
+	JPNZ	IntCnt2_1_1
+;-------beep time
+INT_CNT2_BEEP:
+	MOV	A,B2_TMR_BEEP
+	XOR	A,@0XFF
+	JPZ	INT_CNT2_BEEP_END
+
+	DEC	B2_TMR_BEEP	;decrease/8ms
+	MOV	A,B2_TMR_BEEP
+	JPNZ	INT_CNT2_BEEP_END
+	MOV	A,@CBEEP_END
+	LCALL	INT_STOR_MSG
+INT_CNT2_BEEP_END:	
+
+;-------
+IntCnt2_1_1:
+;---------------------------------------
+IntCnt2_2:
+	MOV	A,B2_TMR_KEYAFFM
+	;XOR	A,@0XFF
+	JPZ	IntCnt2_2_1	;-1为止
+	
+	DEC	B2_TMR_KEYAFFM
+IntCnt2_2_1:	
+;---------------------------------------
+	INC	B2_TMR_KEYSCAN
+
+	LCALL	INTKEYSCAN_OUT
+;---
+	LCALL	RING_CHK
+	AND	A,@0X07
+	MTBL	
+	JMP	IntCnt2_2_1_0
+	JMP	IntCnt2_2_1_1
+	JMP	IntCnt2_2_1_2
+	JMP	IntCnt2_2_1_3
+	JMP	IntCnt2_2_1_4
+	ENDT
+IntCnt2_2_1_1:
+	MOV	A,@CRING_ON
+	JMP	IntCnt2_2_1_MSG
+IntCnt2_2_1_2:
+	MOV	A,@CRING_OK
+	JMP	IntCnt2_2_1_MSG
+IntCnt2_2_1_3:
+	MOV	A,@CRING_FAIL
+	JMP	IntCnt2_2_1_MSG
+IntCnt2_2_1_4:
+	;MOV	A,@CRING_OFF
+	JMP	IntCnt2_2_1_0
+IntCnt2_2_1_MSG:
+	LCALL	INT_STOR_MSG	
+	;JMP	IntCnt2_2_1_0
+IntCnt2_2_1_0:	
+;---
+	LCALL	INTKEYSCAN_IN
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	MOV	A,BANK2_TEMP0
+	MOV	TEMP0,A
+	MOV	A,BANK2_TEMP1
+	MOV	TEMP1,A
+	MOV	A,BANK2_TEMP2
+	MOV	TEMP2,A
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+IntFsk:
+	BC	_ISR,6
+	JMP	IntEnd
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+;	Get day with specific month
+;-------------------------------------------------------------------------------
+DAYINMONTHTABLE_0:
+	MTBL
+	RETL	@0X0		; 0
+	RETL	@31		; 1
+	RETL	@28		; 2
+	RETL	@31		; 3
+	RETL	@30		; 4
+	RETL	@31		; 5
+	RETL	@30		; 6
+	RETL	@31		; 7
+	RETL	@31		; 8
+	RETL	@30		; 9
+	RETL	@31		; 10
+	RETL	@30		; 11
+	RETL	@31		; 12
+	ENDT
+DAYINMONTHTABLE_1:
+	MTBL
+	RETL	@0X0		; 0
+	RETL	@31		; 1
+	RETL	@29		; 2
+	RETL	@31		; 3
+	RETL	@30		; 4
+	RETL	@31		; 5
+	RETL	@30		; 6
+	RETL	@31		; 7
+	RETL	@31		; 8
+	RETL	@30		; 9
+	RETL	@31		; 10
+	RETL	@30		; 11
+	RETL	@31		; 12
+	ENDT
+;----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- OK
+;PURPOSE:   TIMER-INTERRUPT-FUNCTION: UPDATE WEEK, DATA, TIME...
+;INPUT:     TMR1
+;OUTPUT:    
+;EFFECT:    TIMERTEMP
+;----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- 
+DATETIME	MACRO
+
+	INC	B0_SEC_REG
+	SUBA	B0_SEC_REG,@60
+	JPNZ	DATETIME_END	;OVER 60S ?
+;---
+	CLR	B0_SEC_REG
+	INC	B0_MIN_REG
+	SUBA	B0_MIN_REG,@60
+	JPNZ	DATETIME_END	;OVER 60MIN ?
+;---
+	CLR	B0_MIN_REG
+	INC	B0_HOUR_REG
+	SUBA	B0_HOUR_REG,@24	;OVER 24HOUR ?
+	JPNZ	DATETIME_END
+;---
+	CLR	B0_HOUR_REG
+	INC	B0_DAY_REG
+	INC	B0_WEEK_REG
+	
+	MOV	A,@7
+	SUB	A,B0_WEEK_REG
+	JPNZ	DATETIME_03	;OVER 7duty ?
+
+	CLR	B0_WEEK_REG
+DATETIME_03:
+	MOV	A,B0_YEAR_REG
+	AND	A,@0X03
+	JPZ	DATETIME_20	; Check if leap year or not?
+	
+	MOV	A,B0_MON_REG
+	CALL	DAYINMONTHTABLE_0
+
+	JMP	DATETIME_21
+DATETIME_20:
+	MOV	A,B0_MON_REG
+	CALL	DAYINMONTHTABLE_1
+
+DATETIME_21:
+	MOV	TEMP0,A
+
+	MOV	A,B0_DAY_REG
+	SUB     A,TEMP0
+	JPC	DATETIME_END
+;---
+	MOV     B0_DAY_REG,@1
+	INC	B0_MON_REG
+
+	MOV	A,B0_MON_REG
+	SUB	A,@13
+	JPNZ	DATETIME_END
+;---
+	MOV	B0_MON_REG,@1
+	INC	B0_YEAR_REG	;the next year
+
+DATETIME_END:
+	ENDM
+
+;-------------------------------------------------------------------------------
+;page0
+INCLUDE		"main.dt"
+INCLUDE		"f_idle.dt"
+;-------------------------------------------------------------------------------
+;page1
+INCLUDE		"key_det.dt"
+INCLUDE		"CidRaw.dt"
+INCLUDE		"initial.dt"
+;-------------------------------------------------------------------------------
+;page2
+INCLUDE		"drive.dt"
+INCLUDE		"sys_pro.dt"
+INCLUDE		"sys_monitor.dt"
+;-------------------------------------------------------------------------------
+;page3
+INCLUDE		"dam_func.dt"
+INCLUDE		"iic.dt"
+;-------------------------------------------------------------------------------
+;page4
+INCLUDE		"f_answer.dt"
+INCLUDE		"f_stor.dt"
+;-------------------------------------------------------------------------------
+;page5
+INCLUDE		"f_remote.dt"
+;-------------------------------------------------------------------------------
+;page6
+INCLUDE		"f_cid.dt"
+;-------------------------------------------------------------------------------
+;page7
+INCLUDE		"f_phone.dt"
+
+;-------------------------------------------------------------------------------
+;page8
+INCLUDE		"f_ogm.dt"
+INCLUDE		"f_play.dt"
+;-------------------------------------------------------------------------------
+;page9-10-11
+INCLUDE		"f_menu.dt"
+INCLUDE		"f_book.dt"
+;-------------------------------------------------------------------------------
+;page12
+INCLUDE		"vga.dt"
+
+;-------------------------------------------------------------------------------
+;page13
+INCLUDE		"lcddisp.dt"
+INCLUDE		"ring_det.dt"
+INCLUDE		"kernel.dt"
+;-------------------------------------------------------------------------------
+;page14
+INCLUDE		"table.dt"
+INCLUDE		"l_book.dt"
+;-------------------------------------------------------------------------------
+;page15
+INCLUDE		"string.dt"
+INCLUDE		"CidCook.dt"
+;-------------------------------------------------------------------------------
+

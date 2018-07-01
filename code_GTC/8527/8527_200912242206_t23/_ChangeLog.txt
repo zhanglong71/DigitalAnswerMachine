@@ -1,0 +1,47 @@
+**********************************************************************************************
+Code	:GTC-9586 
+DSP	:MD22
+**********************************************************************************************
+完毕
+
+2008-9-1 default aera-code=AAAF;
+
+2008-9-4 change the method of set DAM-att after read data from flash;after store record-command into iic-buffer,delay 30ms 
+
+2008-9-8 after exit answer/remote erase-all then hlt(0x5EA3->0x5EA2);the bug same as 9586 in testmode halt(coursed by cpc-det model)
+
+2008-9-10 Send 0x2D after Power On
+
+2008-9-12 退出应答后关SPK&功放
+
+2008-9-18 加入PowerOnDet;Adjust the method of PowerOn initialization
+
+2008-9-19 send  0x2d after erase the OGM;Use MSG_N not MSG_ID when stor phonebook;
+
+2008-9-22 上电将0X2F放到PowerOn VOP之后发送;andfree/handsetOn clear ReviewCID flag;
+
+2008-9-23 音量大时的丝丝声解决;删除OGM时不发0x2D;
+
+2008-9-27 Speakerphone时,Delete the (current/all)CID bug;lply/lvop/logm/lrec ==> speakerphone bug
+
+2008-10-9 换BIOS(D22_080911V3);give up ring-LED flash;fix ring to answer tissue
+
+2008-10-10 改正从CID中取时间的错误
+
+2008-10-14 上电MSGLED状态设定;VOP可调音量;音量可存入flash;录OGM前发现MEMFUL就直接发FULL和EXIT命令;
+
+2008-10-16 Do tel-gc-chk when goto/exit speakerphone/handset,do tel-gc-chk when exit lookup-CID and don't do tel-gc-chk when delete the specific CID;declare 8-block for tel
+
+2008-10-21 open all codec-path immediately after delete OGM.
+
+2008-10-31 Debug die when handset off-hook;during playing VOP(memo/on-off/setup-menu),then handset off-hook,open all codec-path;start/continue record(memo/ogm) then memoryfull,sendfull and exit(command);Send 0x2d when received volum in idle
+
+2008-11-3 OGM录满60s后向MCU发0x2d;
+
+2008-11-5 加入0X65命令及相应标记ANN_FG,1以控制是否检测铃流;
+
+2008-12-17 play message时,如果ring-in/HF/HS取线,必须等命令发完再退出.
+
+2009-6-12 在v20上替换成9586-v83的ring_det.asm(140ms-on/1100ms-off)/fs_cpc.asm(High p-80ms or L-700ms)及f_phone.asm中的Spkphone通道关闭和mute-delay400ms恢复
+
+2009-12-24 0x83+0x05 加入命令0XE600|CGROUP_CID(原因是有可能转存为phonebook导致group的变化)

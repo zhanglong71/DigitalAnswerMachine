@@ -1,0 +1,178 @@
+.NOLIST
+;-----------------------------// Constant key defines,全部以C开头。--------------------------------
+;---SYS MSG CONST------------------
+	CMSG_KEY1S	.EQU	0X01	;messages for key released(松开按键UP)
+	CMSG_KEY2S	.EQU	0X02
+	CMSG_KEY3S	.EQU	0X03
+	CMSG_KEY4S	.EQU	0X04
+	CMSG_KEY5S	.EQU	0X05
+	CMSG_KEY6S	.EQU	0X06
+	CMSG_KEY7S	.EQU	0X07
+	CMSG_KEY8S	.EQU	0X08
+	CMSG_KEY9S	.EQU	0X09
+	CMSG_KEYAS	.EQU	0X0A
+	CMSG_KEYBS	.EQU	0X0B
+	CMSG_KEYCS	.EQU	0X0C
+	CMSG_KEYDS	.EQU	0X0D
+	CMSG_KEYES	.EQU	0X0E
+	CMSG_KEYFS	.EQU	0X0F
+	CMSG_KEYGS	.EQU	0X10
+;---	
+	CMSG_KEY1L	.EQU	0X11	;messages for key beening pressed 2s
+	CMSG_KEY2L	.EQU	0X12
+	CMSG_KEY3L	.EQU	0X13
+	CMSG_KEY4L	.EQU	0X14
+	CMSG_KEY5L	.EQU	0X15
+	CMSG_KEY6L	.EQU	0X16
+	CMSG_KEY7L	.EQU	0X17
+	CMSG_KEY8L	.EQU	0X18
+	CMSG_KEY9L	.EQU	0X19
+	CMSG_KEYAL	.EQU	0X1A
+	CMSG_KEYBL	.EQU	0X1B
+	CMSG_KEYCL	.EQU	0X1C
+	CMSG_KEYDL	.EQU	0X1D
+	CMSG_KEYEL	.EQU	0X1E
+	CMSG_KEYFL	.EQU	0X1F
+	CMSG_KEYGL	.EQU	0X20
+;---	
+	CMSG_KEY1P	.EQU	0X21	;messages for key beening pressed every 512ms
+	CMSG_KEY2P	.EQU	0X22
+	CMSG_KEY3P	.EQU	0X23
+	CMSG_KEY4P	.EQU	0X24
+	CMSG_KEY5P	.EQU	0X25
+	CMSG_KEY6P	.EQU	0X26
+	CMSG_KEY7P	.EQU	0X27
+	CMSG_KEY8P	.EQU	0X28
+	CMSG_KEY9P	.EQU	0X29
+	CMSG_KEYAP	.EQU	0X2A
+	CMSG_KEYBP	.EQU	0X2B
+	CMSG_KEYCP	.EQU	0X2C
+	CMSG_KEYDP	.EQU	0X2D
+	CMSG_KEYEP	.EQU	0X2E
+	CMSG_KEYFP	.EQU	0X2F
+	CMSG_KEYGP	.EQU	0X30
+	
+	CMSG_KEY1D	.EQU	0X31	;messages for key beening pressed DOWN(48ms later)
+	CMSG_KEY2D	.EQU	0X32
+	CMSG_KEY3D	.EQU	0X33
+	CMSG_KEY4D	.EQU	0X34
+	CMSG_KEY5D	.EQU	0X35
+	CMSG_KEY6D	.EQU	0X36
+	CMSG_KEY7D	.EQU	0X37
+	CMSG_KEY8D	.EQU	0X38
+	CMSG_KEY9D	.EQU	0X39
+	CMSG_KEYAD	.EQU	0X3A
+	CMSG_KEYBD	.EQU	0X3B
+	CMSG_KEYCD	.EQU	0X3C
+	CMSG_KEYDD	.EQU	0X3D
+	CMSG_KEYED	.EQU	0X3E
+	CMSG_KEYFD	.EQU	0X3F
+	CMSG_KEYGD	.EQU	0X40
+;-------
+	CMSG_SER	.EQU	0X80	;收到命令
+
+	CFIRST_RI	.EQU	0X81	;第一次铃声
+	CRMOT_OK	.EQU	0X82	;ENTER Remote stat
+	CRING_OK	.EQU	0X83	;ENTER Answer stat
+	CRING_IN	.EQU	0X84
+	CRING_FAIL	.EQU	0X85
+	
+	CMSG_PDWN	.EQU	0X86
+	CMSG_PUP	.EQU	0X87
+	CMSG_EXIT	.EQU	0X88
+	
+	CMSG_TMODE	.EQU	0X89
+	
+	CMSG_CPC	.EQU	0X8A	
+;	CPARA_MINE	.EQU	0X8B
+	CMSG_HSOFF	.EQU	0X8B	;检测到寄主机HS提机
+	CMSG_HSON	.EQU	0X8C	;检测到寄主机HS挂机
+	
+	CMSG_HFON	.EQU	0X8D	;检测到免提开
+	CMSG_HFOFF	.EQU	0X8E	;检测到免提关
+	CMSG_SELL	.EQU	0X8F
+
+;---外部事件消息完(按键之外的)	
+;---messages for function	
+	
+	CMSG_INIT	.EQU	0XA1
+	CMSG_CTONE	.EQU	0XA2
+	CMSG_BTONE	.EQU	0XA3
+	CREV_DTMF	.EQU	0XA4	;检测到DTMF结束
+	CREV_DTMFS	.EQU	0XA5	;检测到DTMF开始
+
+	CCAS_TONE	.EQU	0XA7	;Cas-Tone end
+	CMSG_VOX	.EQU	0XA8
+
+	CSEG_STOP	.EQU	0XA9
+	CMSG_TMR2	.EQU	0XAA	;检测到定时时间到
+;	CTWAY_REC	.EQU	0XAC
+	CMSG_VOLA	.EQU	0XAD
+	CMSG_VOLS	.EQU	0XAE
+;---	
+	CMSG_TMR	.EQU	0XB0	;MSG OF BASE TIME
+	CSEG_END	.EQU	0XB1	;播放等到一段尾
+	CVP_STOP	.EQU	0XB2	;播放完毕；
+;-------
+	
+	CREC_FULL	.EQU	0XB4	;FLASH FULL；
+	CANN_TIME	.EQU	0XB5	;play the time
+;	CBUF_EMPTY	.EQU	0XB6	;发送缓冲区空
+	
+;-------
+	;CMIC_REC	.EQU	0XD1
+;	CREC_OGM	.EQU	0XD2	;录音0GM，由ID判断1，2
+	;CREC_VP	.EQU	0XD3	;录音
+	;CREC_ICM	.EQU	0XD4	;来电录音
+	;CRUN_DEL	.EQU	0XD5	;删录音
+	;CDEL_OGM	.EQU	0XD6	;删OGMX
+	;CDEL_REC	.EQU	0XD7	;删录音
+	;CDEL_ICM	.EQU	0XD8	;删留言
+	
+	;CPLAY_ID	.EQU	0XD9	;播放
+	;CPLAY_NEW	.EQU	0XDA	;播留言
+	;CPLAY_TOTAL	.EQU	0XDB
+	;CPLAY_OGM	.EQU	0XDC	;播OGMX，由ID判断1，2
+
+;-------------------------------------------------------------------------------
+CBEEP_COMMAND	.EQU	0X48F9	;BEEP CON
+CMODE9		.EQU	0X9040	;关SW-ALC
+COGM1_ID	.EQU	101
+COGM2_ID	.EQU	102
+;---
+CICM_LEN	.EQU	120	;ICM录音时长(秒)
+;---
+CTMR_CTONE	.EQU	8000
+
+CSILENCE_LEVEL	.EQU	7	;
+CVOX_LEVEL	.EQU	17	;
+CGROUP_DATT	.EQU	6	;DAM attribute
+;-------------------------------------------------------------------------------
+CROUT_DRV	.EQU	0X1F	;for answer/remoteplay line-out DRV	;!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+CRAD1_GAIN	.EQU	0X0B	;for answer/remote AD1-PGA	;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+;-------------------------------------------------------------------------------
+ADDR_FIRST	.EQU	0X4400
+ADDR_SECOND	.EQU	0X5900
+;-------------------------------------------------------------------------------
+CTEL_MNUM	.EQU	15
+CMAX_LANG	.EQU	3	;TAB80 = 3/AMPLI TAM100 = 2
+;-------------------------------------------------------------------------------
+DISP_FL		.EQU	0X8EC7		;LED Display"FL"
+DISP_A2		.EQU	0X88A4		;LED Display"A2"
+DISP_rE		.EQU	0XAF86		;LED Display"rE"
+DISP_2r		.EQU	0XA4AF		;LED Display"2r"
+DISP_rA		.EQU	0XAF88		;LED Display"rA"
+DISP_Ln		.EQU	0XC7AB		;LED Display"Ln"
+DISP_PA		.EQU	0X8C88		;LED Display"PA"
+DISP_PR		.EQU	0X8C88		;LED Display"PR"	;Same as"PA"
+DISP_dE		.EQU	0XA186		;LED Display"dE"
+DISP_Er		.EQU	0X86AF		;LED Display"Er"
+DISP_tt		.EQU	0X8787		;LED Display"tt"
+DISP_SL		.EQU	0X92C7		;LED Display"SL"
+
+DISP___		.EQU	0XBFBF		;LED Display"--"	;中横线
+DISP_		.EQU	0XBFBF		;LED Display"  "	;LED off
+;-------------------------------------------------------------------------------
+.END
+

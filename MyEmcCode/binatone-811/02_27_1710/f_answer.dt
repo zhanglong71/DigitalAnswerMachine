@@ -1,0 +1,701 @@
+;-------------------------------------------------------------------------------
+;	answer
+;-------------------------------------------------------------------------------
+ORG	(4<<10)
+;-------------------------------------------------------------------------------
+ANS_FUNC:
+	BANK	1
+	
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	ANS_FUNC_MKEY
+	
+	MOV 	A,@CHOOK_OFF
+	SUB 	A,B1_MSG
+	JPZ 	ANS_FUNC_HOOKOFF
+
+	MOV	A,B1_PRO_VAR
+	AND	A,@0X03
+	MTBL
+	JMP	ANS_FUNC_0	;0
+	JMP	ANS_FUNC_VOP	;1.play-OGM before record
+	JMP	ANS_FUNC_REC	;2.REC-icm/LINE
+	JMP	ANS_FUNC_EXIT	;3.Exit
+	ENDT
+;return
+ANS_FUNC_END:	
+	LJMP	MAIN_LOOP
+;---------------------------------------
+;	B1_PRO_VAR	bit(0..1) program status
+;			bit(2..3) EXIT status(0-VOX/BTONE/CTONE,1-CPC,HS_HF-work)
+;			bit4 - 1/0-LineMode/RecordMode
+;			bit5 reserved
+;			bit6 reserved
+;			bit7 reserved
+;---------------------------------------
+ANS_FUNC_MKEY:
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	ANS_FUNC_MKEY_STP
+	
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	ANS_FUNC_MKEY_SPK
+
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_MKEY_STP:
+	MOV	A,@CMSG_CPC
+	MOV	B1_MSG,A
+	
+	JMP	ANS_FUNC
+;---------------------------------------
+ANS_FUNC_MKEY_SPK:
+	MOV	A,@CMSG_CPC
+	MOV	B1_MSG,A
+	
+	MOV	A,@CPHONE_ON
+	LCALL	STOR_MSG
+	
+	JMP	ANS_FUNC
+;---------------------------------------
+ANS_FUNC_HOOKOFF:
+	MOV	A,@CMSG_CPC
+	MOV	B1_MSG,A
+	
+	MOV	A,@CHOOK_OFF
+	LCALL	STOR_MSG
+	
+	JMP	ANS_FUNC
+;-------------------------------------------------------------------------------
+ANS_FUNC_0:			;idle
+	LCALL	INIT_DAM_FUNC
+	HF_HOOK_H
+
+	MOV	A,@CMSG_INIT
+	SUB	A,B1_MSG
+	JPZ	ANS_FUNC_0_OGMPLY
+
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_0_OGMPLY:
+;-
+	PAGE	#(VGA)
+	MOV	A,@~((1<<3)|(1<<2)|(1<<1)|(1<<0))	;"CALL","NEW","RET","MSG"
+	CALL	CLRVGASTAMP2
+	MOV	A,@(1<<1)
+	CALL	VGASTAMP1	;SPK icon on
+	CALL	VGADRAWSTAMP
+	
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@1		;ANSWER
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	;PAGE	#($)
+;-LinToAD0;DA0ToSpk
+	PAGE	#(DAA_ANS_SPK)
+	CALL	DAA_ANS_SPK
+	PAGE	#(BCVOX_INIT)
+	CALL	BCVOX_INIT
+	;PAGE	#(SET_DAM_RAD0GAIN)	
+	;CALL	SET_DAM_RAD0GAIN
+	PAGE	#(MODE9_LON)
+	CALL	MODE9_LON
+	PAGE	#($)
+	
+	XMUTE_H
+	MUTE_L
+	DAM_MIC_DISABLE
+
+	DAM_SPK_ENABLE
+
+;-VP Start
+	JPB	DAM_FLAG,2,ANS_FUNC_0_OGMPLY_1	;Answer off
+	JPB	DAM_FLAG,3,ANS_FUNC_0_OGMPLY_1	;OGM2 Selected
+	JPB	DAM_FLAG,5,ANS_FUNC_0_OGMPLY_1	;Memfull
+	MOV	B1_PRO_VAR,@0X01
+	MOV	A,@COGM1
+
+	LCALL	OGM_STATUS
+	JPZ	ANS_FUNC_0_OGMPLY_DEFAULTOGM1
+	
+	MOV	TEMP1,A
+	MOV	TEMP0,@ID_PLYA
+	PAGE	#(DSP)
+	CALL	STOR_VP	
+	CALL	LBEEP
+	PAGE	#($)	
+
+	JMP	ANS_FUNC_END
+
+ANS_FUNC_0_OGMPLY_1:
+	MOV	B1_PRO_VAR,@0X11
+	MOV	A,@COGM2
+	LCALL	OGM_STATUS
+	JPZ	ANS_FUNC_0_OGMPLY_DEFAULTOGM2
+	
+	MOV	TEMP1,A
+	MOV	TEMP0,@ID_PLYA
+	
+	PAGE	#(DSP)
+	CALL	STOR_VP	
+	CALL	BBEEP
+	PAGE	#($)	
+
+	JMP	ANS_FUNC_END
+ANS_FUNC_0_OGMPLY_DEFAULTOGM1:
+	
+	MOV	A,@VOPID_DEFOGM1
+	PAGE	#(DSP)
+	CALL	VOP_STOR_VP	
+	CALL	LBEEP
+	PAGE	#($)
+	
+	JMP	ANS_FUNC_END
+ANS_FUNC_0_OGMPLY_DEFAULTOGM2:
+	
+	MOV	A,@VOPID_DEFOGM2
+	
+	PAGE	#(DSP)
+	CALL	VOP_STOR_VP	
+	CALL	BBEEP
+	PAGE	#($)
+
+	JMP	ANS_FUNC_END
+;-------------------------------------------------------------------------------
+ANS_FUNC_VOP:
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG		;DTMF
+	JPZ	ANS_FUNC_VOP_DTMF
+;ANS_FUNC_VOP_1:
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE 10s
+	JPZ	ANS_FUNC_VOP_BTONE
+;ANS_FUNC_VOP_5:
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	ANS_FUNC_VOP_CPC
+;ANS_FUNC_VOP_7:
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	ANS_FUNC_VOP_VPEND
+	
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_VOP_DTMF:
+	LCALL	BCVOX_INIT	;有键按下BCVOX要清零
+	
+	MOV	A,B1_DTMF_VAL
+	LCALL	PSWORD_CHK
+	JPC	ANS_FUNC_VOP_DTMFPASS
+
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_XIN
+	JPNZ	ANS_FUNC_END
+;---"*"	detected,stop playing OGM
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	LCALL	LBEEP
+	
+	SWAPA	B1_PRO_VAR
+	AND	A,@0X0F
+	JPZ	ANS_FUNC_END
+		
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	LCALL	BBEEP
+	
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_VOP_BTONE:
+ANS_FUNC_VOP_CPC:
+	LCALL	INIT_DAM_FUNC
+
+	JMP	ANS_FUNC_EXIT_VPEND
+;---------------------------------------
+ANS_FUNC_VOP_VPEND:
+
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(DAA_ANS_REC)
+	CALL	DAA_ANS_REC
+	PAGE	#(BCVOX_INIT)
+	CALL	BCVOX_INIT	;Start Record/Line mode
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	CALL	VPMSG_CHK	;!!!!!!一个未知故障,必须CALL两次;否则查到的是OGM_STATUS中的VP信息
+	;PAGE	#($)
+
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+
+	JPB	B1_PRO_VAR,4,ANS_FUNC_VOP_VPEND_1	;LineMode
+;-
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;-	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@44		;ICM
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@16		;RECORDING
+	CALL	VGASTRING
+	
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+;-Record Start	
+	MOV	A,@0XFF
+	PAGE	#(SET_VP1IDX)
+	CALL	SET_VP1IDX	;Identify as Message
+	
+	MOV	A,@0X02
+	MOV	B1_PRO_VAR,A
+	
+	SET_NLEDBLK_FLAG
+	
+	LCALL	RECORD_START
+	JMP	ANS_FUNC_END
+;-----------------------------
+ANS_FUNC_VOP_VPEND_1:
+;-Line Start
+	MOV	A,@0X12
+	MOV	B1_PRO_VAR,A
+
+	LCALL	LINE_START
+	
+	JMP	ANS_FUNC_END
+;-------------------------------------------------------------------------------
+ANS_FUNC_REC:				;record or line Mode
+
+	MOV	A,@CREV_DTMF
+	SUB	A,B1_MSG		;DTMF
+	JPZ	ANS_FUNC_REC_DTMF
+;ANS_FUNC_REC_1:
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG		;time 1s
+	JPZ	ANS_FUNC_REC_TMR
+;ANS_FUNC_REC_2:
+	MOV	A,@CMSG_VOX
+	SUB	A,B1_MSG		;VOX_ON 8s
+	JPZ	ANS_FUNC_REC_VOX
+;ANS_FUNC_REC_3:
+	MOV	A,@CMSG_CTONE
+	SUB	A,B1_MSG		;CTONE 8s
+	JPZ	ANS_FUNC_REC_CTONE
+;ANS_FUNC_REC_4:
+	MOV	A,@CMSG_BTONE
+	SUB	A,B1_MSG		;BTONE
+	JPZ	ANS_FUNC_REC_BTONE
+;ANS_FUNC_REC_5:
+	MOV	A,@CREC_FULL
+	SUB	A,B1_MSG		;REC_FULL
+	JPZ	ANS_FUNC_REC_FULL
+;ANS_FUNC_REC_6:	
+	MOV	A,@CMSG_CPC
+	SUB	A,B1_MSG		;接线后摘机(相当于CPC)
+	JPZ	ANS_FUNC_REC_CPC
+;ANS_FUNC_REC_7:
+
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_REC_DTMF:
+	PAGE	#(BCVOX_INIT)
+	CALL	BCVOX_INIT	;有键按下BCVOX要清零
+
+	MOV	A,B1_DTMF_VAL
+	LCALL	PSWORD_CHK
+	JPNC	ANS_FUNC_END
+;---Psword ok
+ANS_FUNC_REC_DTMFPASS:
+	JPB	B1_PRO_VAR,4,ANS_FUNC_VOP_DTMFPASS	;Line Mode
+	
+	PAGE	#(REC_GIVEUP)
+	CALL	REC_GIVEUP	;Give up the ICM
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	
+ANS_FUNC_VOP_DTMFPASS:	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+
+	MOV 	A,@CRMT_OK
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+	PAGE	#($)
+	
+	RESET_NEWESTCID_FLAG	;the newest CID...Can't work
+	RESET_NLEDBLK_FLAG	;LED don't blink
+
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_REC_TMR:
+	INC	B1_PRO_VAR1
+	
+	JPNB	B1_PRO_VAR,4,ANS_FUNC_REC_TMR_1	;Record mode ?
+;---Line mode(check 10s timer out)
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@10
+	JPNC	ANS_FUNC_EXIT_VPEND	;10s time out
+
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_REC_TMR_1:			;Record mode
+;---Record mode(check Record timer out:60s/120s)
+	SWAPA	B1_RING_NUM
+	AND	A,@0X03
+	LCALL	MSGLEN_TAB
+	MOV	TEMP0,A
+
+	MOV	A,B1_PRO_VAR1
+	SUB	A,TEMP0
+	JPNC	ANS_FUNC_REC_TMROUT	;录满60*Xs退出
+
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_REC_TMROUT:
+	LCALL	INIT_DAM_FUNC
+;---Record mode end check CID exist or not
+ANS_FUNC_REC_OK:
+;---VP Record ok,Check New-CID	
+	JPNB	SYS_FLAG,4,ANS_FUNC_REC_OK_1
+;---Newest CID exist 
+	MOV	A,@CGROUP_MISSCID
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+;-
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A
+
+	PAGE	#(GET_TEL0IDX)
+	CALL	GET_TEL0IDX
+	MOV	A,TEMP0
+	AND	A,@0X80
+	MOV	B1_YEAR_REG,A	;!!!Reserved new-flag
+;-
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	MOV	A,B1_MSG_T
+	PAGE	#(GET_ONLYID)
+	CALL	GET_ONLYID
+	
+	MOV	A,TEMP0
+	OR	B1_YEAR_REG,A
+
+	MOV	A,B1_CID_T	;TEL-message
+	MOV	TEMP0,A
+	MOV	A,B1_YEAR_REG	;index-0
+	PAGE	#(SET_TEL0IDXF)
+	CALL	SET_TEL0IDXF
+	;PAGE	#($)	
+ANS_FUNC_REC_OK_1:
+;---Now generate beep
+	PAGE	#(DSP)
+	CALL	LBEEP			;VOX/Ctone/Btone Over LBEEP
+	PAGE	#($)
+		
+	MOV	A,@0X03
+	MOV	B1_PRO_VAR,A		;退出答录
+	
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_REC_VOX:
+ANS_FUNC_REC_CTONE:
+
+	JPB	B1_PRO_VAR,4,ANS_FUNC_STOPLINE	;Line mode ?	
+;---Stop record	and cut tail
+	MOV	A,@CTAIL8S	;8s(Same as binatone demo)
+	PAGE	#(REC_CUTTAIL)
+	CALL	REC_CUTTAIL
+	PAGE	#($)
+	
+	JMP	ANS_FUNC_REC_CUTTAIL_OK
+;-------------------
+ANS_FUNC_REC_BTONE:
+	
+	JPB	B1_PRO_VAR,4,ANS_FUNC_STOPLINE	;Line mode ?	
+;---Stop record	and cut tail
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	;PAGE	#($)
+ANS_FUNC_REC_CUTTAIL_OK:	
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	
+	MOV	A,B1_MSG_T
+	PAGE	#(GET_VPLEN)
+	CALL	GET_VPLEN
+	PAGE	#($)
+	MOV	A,TEMP0
+	ADD	A,@(256-3)
+	JPC	ANS_FUNC_REC_OK
+;--Less than 3s,Giveup it
+	MOV	A,B1_MSG_T
+	PAGE	#(VPMSG_DEL)
+	CALL	VPMSG_DEL
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	
+	JMP	ANS_FUNC_REC_OK_1
+;-------------------
+ANS_FUNC_STOPLINE:	;It have confirm that in LineMode
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(GC_CHK)
+	CALL	GC_CHK
+	PAGE	#($)
+
+;---Line mode exit
+	JMP	ANS_FUNC_EXIT_VPEND
+;---------------------------------------
+ANS_FUNC_REC_FULL:
+	
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+
+	PAGE	#(DSP)
+	CALL	BBEEP			;警告语音BB
+	MOV	A,@VOPID_MEMFULL
+	CALL	VOP_STOR_VP
+	PAGE	#($)
+		
+	MOV	A,@0X03
+	MOV	B1_PRO_VAR,A		;退出答录
+	
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_REC_CPC:
+	JPB	B1_PRO_VAR,4,ANS_FUNC_EXIT_VPEND	;Line mode ?	
+;---Record mode	
+	MOV	A,B1_PRO_VAR1		;The record time
+	SUB	A,@2
+	JPC	ANS_FUNC_CPC_RECGIVEUP
+;---Record time length more than 2s
+	PAGE	#(INIT_DAM_FUNC)	
+	CALL	INIT_DAM_FUNC
+	PAGE	#($)
+;---VP Record ok	
+	JPNB	SYS_FLAG,4,ANS_FUNC_EXIT_VPEND
+;---Newest CID exist 
+	MOV	A,@CGROUP_MISSCID
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+;-
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A
+
+	PAGE	#(GET_TEL0IDX)
+	CALL	GET_TEL0IDX
+	MOV	A,TEMP0
+	AND	A,@0X80
+	MOV	B1_YEAR_REG,A	;!!!Reserved new-flag
+;-
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	MOV	A,B1_MSG_T
+	PAGE	#(GET_ONLYID)
+	CALL	GET_ONLYID
+
+	MOV	A,TEMP0
+	OR	B1_YEAR_REG,A
+
+	MOV	A,B1_CID_T	;TEL-message
+	MOV	TEMP0,A
+	MOV	A,B1_YEAR_REG	;index-0
+	PAGE	#(SET_TEL0IDXF)
+	CALL	SET_TEL0IDXF
+	;PAGE	#($)	
+if	0
+	PAGE	#(DSP)
+	CALL	BBEEP			;CPC Over BBEEP
+	PAGE	#($)
+		
+	MOV	A,@0X03
+	MOV	B1_PRO_VAR,A		;退出答录	
+	JMP	ANS_FUNC_END
+else
+	JMP	ANS_FUNC_EXIT_VPEND
+endif
+;---------------------------------------
+ANS_FUNC_CPC_RECGIVEUP:
+	PAGE	#(REC_GIVEUP)	
+	CALL	REC_GIVEUP
+	PAGE	#(GC_CHK)	
+	CALL	GC_CHK
+	PAGE	#($)
+	JMP	ANS_FUNC_EXIT_VPEND
+;-------------------------------------------------------------------------------
+ANS_FUNC_EXIT:
+	MOV	A,@CVP_END
+	SUB	A,B1_MSG
+	JPZ	ANS_FUNC_EXIT_VPEND
+	
+	JMP	ANS_FUNC_END
+;---------------------------------------
+ANS_FUNC_EXIT_VPEND:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	
+	MOV	A,@CMSG_INIT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+
+	PAGE	#(CLR_PRO_STACK)
+	CALL	CLR_PRO_STACK
+	PAGE	#($)
+	
+	CLR	B1_PRO_VAR
+	HF_HOOK_L
+	DAM_SPK_DISABLE
+	RESET_NEWESTCID_FLAG	;the newest CID...Can't work
+	RESET_NLEDBLK_FLAG	;LED don't blink
+
+	JMP	ANS_FUNC_END
+;###############################################################################
+;	GET_TELN
+;
+;	input : No
+;	output: B1_CID_T = the number of total TEL-message
+;		B1_CID_N = the number of new TEL-message
+;
+;	the current TEL_Group
+;
+;###############################################################################
+GET_TELN:
+	LCALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A
+	MOV	B1_CID_N,A
+	MOV	B1_YEAR_REG,A
+	
+	INC	B1_YEAR_REG
+GET_TELN_LOOP:	
+	DEC	B1_YEAR_REG
+	MOV	A,B1_YEAR_REG
+	JPZ	GET_TELN_END
+	LCALL	GET_TEL0IDX
+	JPB	TEMP0,7,GET_TELN_LOOP
+;---No new-flag
+	DEC	B1_CID_N
+	JMP	GET_TELN_LOOP
+GET_TELN_END:	
+
+	RESET_NEWCID_FLAG
+	MOV	A,B1_CID_N
+	JBS	_STATUS,Z
+	SET_NEWCID_FLAG	
+	
+	RET
+;###############################################################################
+;	GET_TELID
+;
+;	input : acc = the index-0
+;	output: acc = the TEL-message number
+;
+;	Get TEL-message number by specific index-0
+;	COMMAND = 0xE900
+;
+;###############################################################################
+GET_TELID:
+
+	MOV	B1_YEAR_REG,A	;the index-0
+
+	LCALL	GET_TELT
+	INCA	TEMP0
+	MOV	B1_CID_N,A
+
+GET_TELID_LOOP:
+	DEC	B1_CID_N
+	MOV	A,B1_CID_N
+	JPZ	GET_TELID_END
+	LCALL	GET_TEL0IDX
+	
+	MOV	A,TEMP1
+	JPNZ	GET_TELID_LOOP	;Byte index-0 not found
+	
+	MOV	A,TEMP0
+	XOR	A,B1_YEAR_REG
+	AND	A,@0X7F
+	JPNZ	GET_TELID_LOOP	;match ?
+
+GET_TELID_END:	
+	MOV	A,B1_CID_N
+	MOV	TEMP0,A
+	
+	RET
+	
+;###############################################################################
+;	TEL_UNLINK
+;
+;	input : acc = no
+;		B1_MSG_T = total number of V-message
+;	output: acc = the TEL-message number
+;
+;
+;###############################################################################
+TEL_UNLINK:
+	LCALL	GET_TELT
+	INCA	TEMP0
+	MOV	B1_CID_N,A
+TEL_UNLINK_1LOOP:
+	DEC	B1_CID_N
+	MOV	A,B1_CID_N
+	JPZ	TEL_UNLINK_END
+	LCALL	GET_TEL0IDX
+
+	MOV	A,TEMP1
+	JPNZ	TEL_UNLINK_1LOOP	;Byte index-0 not found,check next one
+	MOV	A,TEMP0
+	AND	A,@0X7F
+	JPZ	TEL_UNLINK_1LOOP	;not match,check next one
+	MOV	B1_SEC_REG,A		;Save the index-0
+	XOR	A,@0X7F
+	JPZ	TEL_UNLINK_1LOOP	;not match,check next one
+
+	MOV	A,B1_MSG_T
+	MOV	B1_YEAR_REG,A
+	
+TEL_UNLINK_2LOOP:
+	MOV	A,B1_YEAR_REG
+	LCALL	GET_ONLYID
+	MOV	A,TEMP0
+	XOR	A,B1_SEC_REG
+	AND	A,@0X7F
+	JPZ	TEL_UNLINK_1LOOP	;find out the match VP
+	
+	DEC	B1_YEAR_REG
+	MOV	A,B1_YEAR_REG
+	JPNZ	TEL_UNLINK_2LOOP
+;---found out VP which only-id same as the index-0
+	MOV	A,B1_SEC_REG
+	AND	A,@0X80
+	MOV	TEMP2,A
+
+	MOV	A,B1_CID_N
+	MOV	TEMP0,A
+	MOV	A,TEMP2
+	LCALL	SET_TEL0IDXF
+	
+	JMP	TEL_UNLINK_1LOOP	
+TEL_UNLINK_END:	
+	MOV	A,B1_CID_N
+	MOV	TEMP0,A
+	
+	RET
+;-------------------------------------------------------------------------------	

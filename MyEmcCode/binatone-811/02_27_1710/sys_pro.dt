@@ -1,0 +1,464 @@
+;-------------------------------------------------------------------------------
+SYS_MSG:
+
+	MOV 	A,@CSEG_END
+	SUB 	A,B1_MSG
+	JPZ 	SYS_SEG_END
+	MOV 	A,@CBEEP_END
+	SUB 	A,B1_MSG
+	JPZ 	SYS_BEEP_END
+	
+	MOV 	A,@CMSG_RTC
+	SUB 	A,B1_MSG
+	JPZ 	SYS_MSG_RTC
+	
+	MOV 	A,@CRING_OK
+	SUB 	A,B1_MSG
+	JPZ 	SYS_MSG_ANS
+
+	MOV 	A,@CRMT_OK
+	SUB 	A,B1_MSG
+	JPZ 	SYS_MSG_RMT
+
+	MOV 	A,@CUPDT_MENU
+	SUB 	A,B1_MSG
+	JPZ 	SYS_MSG_UPDATEPARA
+
+SYS_MSG_NO:
+	CLRC
+	RET
+SYS_MSG_YES:
+	SETC
+
+	RET
+;---------------------------------------
+SYS_MSG_RMT:
+	MOV	A,@CMSG_INIT
+	LCALL	STOR_MSG
+
+	MOV	A,@CGOTO_REMOTE
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP	SYS_MSG_YES
+;---------------------------------------
+SYS_MSG_ANS:			;Start answer
+	MOV	A,@CMSG_INIT
+	LCALL	STOR_MSG
+
+	MOV	A,@CGOTO_ANSWER
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP	SYS_MSG_YES
+;---------------------------------------
+SYS_MSG_UPDATEPARA:	;Update parameter after Exit menu/Damonoff/OGMsel
+;---Save the confirm data
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	MOV	A,@CGROUP_DATT
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	PAGE	#(DAT_WRITE)
+;---Language
+	MOV	A,B1_LANGUAGE	
+	CALL	DAT_WRITE	;Byte1
+;---Flash
+	MOV	A,B1_FLASH	
+	CALL	DAT_WRITE	;Byte2
+;---Contrasrt
+	MOV	A,B1_CONTRAST	
+	CALL	DAT_WRITE	;Byte3
+;---Length+ringcnt
+	MOV	A,B1_RING_NUM	
+	CALL	DAT_WRITE	;Byte4
+;---Ps1234
+	MOV	A,B1_12PSWORD	
+	CALL	DAT_WRITE	;Byte5
+	MOV	A,B1_34PSWORD	
+	CALL	DAT_WRITE	;Byte6
+;---HD(SYS_FLAG,4)
+	MOV	A,SYS_FLAG
+	AND	A,@0X08
+	CALL	DAT_WRITE	;Byte7
+;---ON/OFF - OGM1/2(DAM_FLAG,3,2)
+	MOV	A,DAM_FLAG
+	AND	A,@0X0C
+	CALL	DAT_WRITE	;Byte8
+;---	
+	CALL	DAT_WRITE_STOP
+;MENU_FUNC_DELOLD:
+SYS_MSG_DELOLDPARA:
+	LCALL	GET_TELT
+	MOV	A,TEMP0
+	SUB	A,@1
+	JPC	SYS_MSG_DELOLDPARA_END
+	
+	MOV	A,@1
+	LCALL	DEL_TEL
+	JMP	SYS_MSG_DELOLDPARA
+SYS_MSG_DELOLDPARA_END:
+	LCALL	TEL_GC_CHK
+
+	MOV	A,@CMSG_INIT
+	MOV	B1_MSG,A
+	;JMP	SYS_MSG_YES	;???
+	JMP	SYS_MSG_NO	;!!!
+;---------------------------------------
+;SYS_MSG_DCH:
+	;JMP	SYS_MSG_YES
+;---------------------------------------
+;SYS_MSG_DCL:
+	;JMP	SYS_MSG_YES
+;---------------------------------------
+SYS_MSG_RTC:
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LCALL	UPDATE_DATETIME
+	
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP)
+	BS	_RD,5
+	MOV	A,_RD
+	XOR	A,@(1<<2)
+	MOV	_RD,A	
+
+	MOV	_RC,@LCD_CTRL
+	BS	_RD,4
+	BS	_RD,5
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	JMP	SYS_MSG_YES
+;-------------------------------------------------------------------------------
+SYS_SEG_END0:
+	LCALL	INIT_DAM_FUNC
+	MOV	A,@CVP_END
+	MOV	B1_MSG,A		;通知系统播放完毕
+	JMP	SYS_MSG_NO
+
+SYS_SEG_END:
+SYS_BEEP_END:
+	LCALL	GET_VP
+	JPC	SYS_SEG_END0
+	LJMP	VP_START	;!!!must SETC before return(for stack)
+	;JMP	SYS_MSG_YES
+;-------------------------------------------------------------------------------
+;       Function : VOX_CHK
+;
+;       The general routine used in remote line operation. It checks VOX
+;       Input  : TEMP0,TEMP1 (Record/LINE Mode RESPOND)
+;       Output : C = 1/0  -  VOX found over 8.0 sec/no
+;
+;	!!!Can't change TEMP0,TEMP1
+;-------------------------------------------------------------------------------
+VOX_CHK:
+	BANK	0
+	JPNB	TEMP0,6,VOX_CHK_OFF
+VOX_CHK_ON:                     ;VOX on
+	MOV	A,B0_TMR_VOX
+	JPNZ	VOX_CHK_END
+
+	SETC			;VOX found over 8.0 sec, return ACCH=1
+        RET
+;-------------------
+VOX_CHK_OFF:			;VOX off
+	MOV	B0_TMR_VOX,@CTMR_CVOX       ; restore 8.0 sec in TMR_VOX
+VOX_CHK_END:
+	CLRC
+	RET
+;-------------------------------------------------------------------------------
+;       Function : CTONE_CHK
+;
+;       The general routine used in remote line operation. It checks CONT TONE
+;       Input  : CONF (Record Mode, Line Mode)
+;       Output : C = 1/0  -  continuous tone period found/no
+;
+;	!!!Can't change TEMP0,TEMP1
+;-------------------------------------------------------------------------------
+CTONE_CHK:
+	BANK	0
+	
+	JPNB	TEMP0,4,CTONE_CHK_FAIL         	; check if continuous tone happens ?
+CTONE_CHK_ON:
+	MOV	A,B0_TMR_CTONE
+	JPNZ	CTONE_CHK_END
+
+	SETC            			; continuous tone period found, return ACCH=1
+        RET
+
+CTONE_CHK_FAIL:     
+        MOV	B0_TMR_CTONE,@CTMR_CTONE	; continuous tone off
+CTONE_CHK_END:
+	CLRC            			; continuous tone period found, return ACCH=1
+        RET
+
+;----------------------------------------------------------------------------
+;       Function : DTMF_CHK
+;
+;       The general routine used in remote line operation. It checks DTMF
+;       Input  : CONF (Record Mode, Play Mode, Line Mode or Voice Prompt Mode)
+;       Output : C = 1/0  - 
+;		 B1_DTMF_VAL  =  DTMF value
+;       Parameters:
+;               DAM_FLAG,1 - store the detected DTMF flag
+;	!!!Can't change TEMP0,TEMP1
+;----------------------------------------------------------------------------
+DTMF_CHK:
+	BANK	1
+	JPNB	TEMP1,0,DTMF_CHK_1
+	MOV	A,TEMP0			;check the DTMF value ?
+        AND	A,@0X0F
+	JPZ	DTMF_CHK_CASTONE
+        XOR	A,@0X0F
+        JPZ	DTMF_CHK_D
+DTMF_CHK_1:	
+	MOV	A,TEMP0			;check the DTMF value ?
+        AND	A,@0X0F
+        JPZ	DTMF_CHK_3
+DTMF_CHK_2:
+	LCALL	DTMF_TABLE		;Transform to machine-code
+	MOV	B1_DTMF_VAL,A		;save the DTMF value in DTMF_VAL
+       
+	BS	DAM_FLAG,1
+        JMP	DTMF_CHK_END
+DTMF_CHK_D:
+	MOV	A,@NUM_D
+	JMP	DTMF_CHK_2
+DTMF_CHK_3:
+        JPNB	DAM_FLAG,1,DTMF_CHK_END	;no-to-no
+	BC	DAM_FLAG,1
+
+	SETC				; DTMF detected, return C=1
+        RET
+DTMF_CHK_END:
+DTMF_CHK_CASTONE:
+	CLRC
+	RET
+;-------------------------------------------------------------------------------
+;       Function : BTONE_CHK
+;
+;       The general routine used in remote line operation. It checks BUSY TONE
+;       Input  : CONF (Record Mode, Play Mode, Line Mode or Voice Prompt Mode)
+;       Output : ACCH = 1  -  Busy tone
+;                ACCH = 0  -  NO Busy tone
+;
+;       Parameters:
+;               3. B0_TMR_BTONE     - for busy tone detection
+;               4. B0_BUF    - store the total time of busy tone
+;               5. B0_BTONE_BUF1     - store the last on time of busy tone
+;               6. B0_BTONE_BUF2     - store the last off time of busy tone
+;               7. B0_BTONE_BUF3     - store some flags for busy tone detection
+;                  (see B0_BTONE_BUF3.DOC)
+;	!!!Can't change TEMP0,TEMP1
+;	B0_BTONE_BUF3	bit7-first busy tone off
+;			bit6-first busy tone on
+;			bit5-LastOff
+;			bit4-LastOn
+;			bit(3..0)-the counter on/off
+;-------------------------------------------------------------------------------
+BTONE_CHK:
+	BANK	0
+
+        JPNB	TEMP0,5,BTONE_CHK_OFF
+BTONE_CHK_ON:                    			; busy tone on
+	JPNB	B0_BTONE_BUF3,5,BTONE_CHK_ON_ONTON      ; check if transition from busy tone off ?
+
+	MOV	A,B0_TMR_BTONE
+	SUB	A,@3
+	JPC	BTONE_CHK_ON_FAIL			;busy tone off time < 3/16s, fails
+
+	MOV	A,B0_BTONE_BUF3
+        AND	A,@0XCF
+        OR	A,@0X10					; set 'in busy tone on' bit to 1
+	MOV	B0_BTONE_BUF3,A
+
+	JPB	B0_BTONE_BUF3,7,BTONE_CHK_ON1_1		; check if the first busy tone off to on has happened ?
+
+        BS	B0_BTONE_BUF3,7				; from busy tone off to on first time
+        
+        JMP	BTONE_CHK_ON1_2
+BTONE_CHK_ON1_1:
+	MOV	A,B0_TMR_BTONE              		; B0_TMR_BTONE=the current busy tone off time
+	SUB	A,B0_BTONE_BUF2              		; B0_BTONE_BUF2=the last busy tone off time
+	JPC	BTONE_CHK_ON1_1_1
+
+	MOV	A,B0_BTONE_BUF2
+	SUB	A,B0_TMR_BTONE
+BTONE_CHK_ON1_1_1:					; the difference between B0_TMR_BTONE and B0_BTONE_BUF2
+							; must be <= 67.5 ms
+	SUB	A,@0X1
+	JPNC	BTONE_CHK_ON_FAIL
+
+	MOV	A,B0_TMR_BTONE
+	ADD	A,B0_BTONE_BUF1
+	SUB	A,@6				;make sure TONEon + TONEoff > 6/16s(375ms)
+	JPC	BTONE_CHK_ON_FAIL
+	
+	MOV	A,B0_TMR_BTONE
+	ADD	A,B0_BTONE_BUF1	
+	SUB	A,@22				;make sure TONEon + TONEoff < 22/16s(1375ms)
+	JPNC	BTONE_CHK_ON_FAIL
+
+BTONE_CHK_ON1_2:
+	MOV	A,B0_BTONE_BUF1			; B0_BUF store the total busy tone time
+	ADD	B0_BUF,A			; add the last busy tone on time to B0_BUF
+	
+	INC	B0_BTONE_BUF3 			; increase the 'tone on/off count' by 1
+
+        MOV	A,B0_BTONE_BUF3
+        AND	A,@0X0F
+        SUB	A,@5     			; if the 'tone on/off count' >= 5, busy tone
+        JPC	BTONE_CHK_ON1_5			; period found
+        
+BTONE_CHK_ON1_3: 
+	JPNB	EVENT,7,BTONE_CHK_ON1_4		;record mode or not?
+						;busy tone period found
+	MOV	A,B0_TMR_BTONE
+	ADD	A,B0_BUF
+	MOV	B0_BUF,A
+	
+	AND	A,@0XF8			;Clean the low bit,make sure it can't affect the high bit in bellow RRC instruction
+	MOV	TEMP2,A
+	
+	CLRC
+	RRC	TEMP2
+	RRC	TEMP2
+	RRCA	TEMP2			;1/8
+	MOV	TEMP0,A			;Save the 1/8 B0_BUF(the bit7,6,5 = 000xxxxx)
+	AND	A,@0XFC
+	MOV	TEMP2,A
+	
+	RRC	TEMP2			;1/16
+	RRCA	TEMP2			;1/32 ;Clean the high bit,make sure it can't affect the high bit in bellow OR instruction
+	
+	ADD	A,TEMP0
+	MOV	TEMP2,A			;tail cut base 400ms ==> (1/8 + 1/32)/16ms
+	
+	PAGE	#(GET_COMMAND)
+	CALL	GET_COMMAND
+	MOV	A,TEMP0
+	AND	A,@0XC0
+	OR	A,TEMP2
+	MOV	TEMP0,A
+	CALL	STOR_COMMAND
+	PAGE	#($)
+BTONE_CHK_ON1_4:        
+        SETC                 		; busy tone period found, return ACCH=0
+        RET
+
+BTONE_CHK_ON1_5:
+	MOV	A,B0_TMR_BTONE
+        MOV	B0_BTONE_BUF2,A		; save the current busy tone off time in B0_BTONE_BUF2
+
+        CLR	B0_TMR_BTONE
+        
+        JMP	BTONE_CHK_END
+BTONE_CHK_ON_FAIL:                    	; busy tone fails
+	MOV	A,B0_TMR_BTONE
+	MOV	B0_BTONE_BUF2,A
+	MOV	B0_BUF,A
+	
+	CLR	B0_TMR_BTONE
+        CLR     B0_BTONE_BUF1
+
+	MOV	B0_BTONE_BUF3,@0X90   	; set first busy tone off to on happened; set 'in busy tone on' bit to 1
+
+	JMP	BTONE_CHK_END
+BTONE_CHK_ON_ONTON:
+	
+	MOV	A,B0_BTONE_BUF3
+	AND	A,@0XCF
+	OR	A,@0X10
+	MOV	B0_BTONE_BUF3,A
+
+	MOV	A,B0_TMR_BTONE
+	SUB	A,@118 			; FOR FIRST BUSY TONE > 118/16 SEC CHECK
+	JPC	BTONE_CHK_END
+
+	MOV	A,B0_TMR_BTONE
+	MOV	B0_BUF,A
+	CLR	B0_TMR_BTONE
+	JMP	BTONE_CHK_ON1_3		; JUMP TO TAIL CUT
+
+BTONE_CHK_OFF:                   	; busy tone off
+	JPNB	B0_BTONE_BUF3,4,BTONE_CHK_OFF_OFFTOFF	; check if transition from busy tone on ?
+
+	MOV	A,B0_TMR_BTONE
+	SUB	A,@4			;busy tone on time < 4/16 s, fails
+	JPC	BTONE_CHK_OFF_FAIL
+	MOV	A,B0_TMR_BTONE
+	SUB	A,@11			;busy tone on time < 11/16 s, fails
+	JPNC	BTONE_CHK_OFF_FAIL
+
+	MOV	A,B0_BTONE_BUF3
+	AND	A,@0XCF
+	OR	A,@0X20 		; set 'in busy tone off' bit to 1
+	MOV	B0_BTONE_BUF3,A
+
+	JPB	 B0_BTONE_BUF3,6,BTONE_CHK_OFF1_1	; check if the first busy tone on to off has happened ?
+					; from busy tone on to off first time
+
+        BS	B0_BTONE_BUF3,6
+        
+        MOV	A,B0_TMR_BTONE
+	MOV	B0_BTONE_BUF1,A
+        
+	JMP	BTONE_CHK_OFF1_2
+BTONE_CHK_OFF1_1:
+	MOV	A,B0_TMR_BTONE              		; B0_TMR_BTONE=the current busy tone on time
+	SUB	A,B0_BTONE_BUF1              	   	; B0_BTONE_BUF2=the last busy tone on time
+	JPC	BTONE_CHK_OFF1_1_1
+
+	MOV	A,B0_BTONE_BUF1
+	SUB	A,B0_TMR_BTONE
+BTONE_CHK_OFF1_1_1:					; the difference between B0_TMR_BTONE and B0_BTONE_BUF1
+							; must be <= 67.5 ms
+	SUB	A,@0X1
+	JPNC	BTONE_CHK_OFF_FAIL
+
+	MOV	A,B0_BTONE_BUF2 			; B0_BUF store the total busy tone time
+	ADD	B0_BUF,A				; add the last busy tone off time to B0_BUF
+
+        MOV	A,B0_TMR_BTONE
+        MOV	B0_BTONE_BUF1,A 		; save the current busy tone on time in B0_BTONE_BUF1
+        
+BTONE_CHK_OFF1_2:              
+        CLR	B0_TMR_BTONE			; reset B0_TMR_BTONE for restart
+        JMP	BTONE_CHK_END
+BTONE_CHK_OFF_FAIL:                   		; busy tone fails
+	MOV	A,B0_TMR_BTONE
+	MOV	B0_BTONE_BUF1,A
+
+	CLR	B0_TMR_BTONE
+	CLR	B0_BUF
+	CLR	B0_BTONE_BUF2
+
+	MOV	A,@0X60              		; set first busy tone on to off happened
+        MOV	B0_BTONE_BUF3,A              	; set 'in busy tone off' bit to 1
+        JMP	BTONE_CHK_END
+BTONE_CHK_OFF_OFFTOFF:
+	JPB	B0_BTONE_BUF3,6,BTONE_CHK_END
+	JPB	B0_BTONE_BUF3,7,BTONE_CHK_END
+
+        CLR	B0_TMR_BTONE
+BTONE_CHK_END:
+	CLRC
+
+	RET
+;-------------------------------------------------------------------------------
+BCVOX_INIT:
+	
+	MOV	A,_R4
+	MOV	OLD_RAM,A		;PUSH _R4
+	
+	BANK	0
+	CLR	B0_TMR_BTONE
+	CLR	B0_BTONE_BUF1
+	CLR	B0_BTONE_BUF2
+	
+	MOV	A,@CTMR_CVOX
+	MOV	B0_TMR_CTONE,A
+	MOV	B0_TMR_VOX,A
+	
+	MOV	A,OLD_RAM		;POP _R4
+	MOV	_R4,A
+
+	RET
+;-------------------------------------------------------------------------------

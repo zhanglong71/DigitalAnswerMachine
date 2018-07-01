@@ -1,0 +1,442 @@
+;-------------------------------------------------------------------------------
+;	IIC	Communication
+;Note: 	CLK = high after IIC-stop
+;	CLK = low after IIC-start/send-data/received-data/ack/noack
+;
+;	temp0 - data
+;	temp1 - counter(8bit)
+;	temp2 - counter(times of delay)
+;	temp3 - address buckup
+;-------------------------------------------------------------------------------
+PORT_IICSCL	==	_P8
+PORT_IICSDA	==	_P7
+PORT_DSPREQ	==	_P7
+
+IO_IICSCL	==	0
+IO_IICSDA	==	7
+IO_DSPREQ	==	6
+;-------------------------------------------------------------------------------
+;	每条单周期指令0.6us
+;	延时7*0.6us=4.2us，再加上调用时0.6us，共4.8us。
+;	Nothing to do with bank or ram
+;-------------------------------------------------------------------------------
+IIC:
+IICDELAY:
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	RET
+;-------------------------------------------------------------------------------	
+DELAY:		;1ms
+	MOV	TEMP1,@128
+
+DELAY_LOOP:
+	CALL	IICDELAY	
+	DJZ	TEMP1
+	JMP	DELAY_LOOP
+	
+	RET
+;-------------------------------------------------------------------------------
+DELAY_5MS:
+	MOV	TEMP2,@10
+DELAY_5MS_LOOP:
+	CALL	DELAY	
+	DJZ	TEMP2
+	JMP	DELAY_5MS_LOOP
+	
+	RET
+;-------------------------------------------------------------------------------	
+DELAY_10MS:
+	MOV	TEMP2,@10
+	JMP	DELAY_5MS_LOOP
+;-------------------------------------------------------------------------------	
+DELAY_100MS:
+	MOV	TEMP2,@200
+	JMP	DELAY_5MS_LOOP
+;-------------------------------------------------------------------------------
+;	将SCL线拉高，拉高之前必须检查SCL线是否为低，为低时则需要等待其变高。
+;	Nothing to do with bank or ram or stack
+;-------------------------------------------------------------------------------
+IICSCL_H:
+;---Set clk as input port
+	IOR	PORT_IICSCL
+	OR	A,@(1<<IO_IICSCL)
+	IOW	PORT_IICSCL
+;---Check scl H/L
+	JBS	PORT_IICSCL,IO_IICSCL
+	JMP	$-1				; 等待SCL线变高
+
+	BS	PORT_IICSCL,IO_IICSCL		; 拉高SCL线
+
+	IOR	PORT_IICSCL
+	AND	A,@((1<<IO_IICSCL)^0xff)	; 将SCL改为输出状态
+	IOW	PORT_IICSCL
+
+	RET
+
+;------------------------------------------------------------------------------
+IICSTART:	;(stack+1)
+	CALL	IICDELAY
+	CALL	IICDELAY
+	BC	PORT_IICSDA,IO_IICSDA		; 拉低SDA线，产生一个start条件
+	CALL	IICDELAY			; 延时5us
+	BC	PORT_IICSCL,IO_IICSCL		; SCL变低
+	CALL	IICDELAY
+	RET
+;-------------------------------------------------------------------------------
+IICSTOP:	;(stack+1)
+	IOR	PORT_IICSDA
+	AND	A,@((1<<IO_IICSDA)^0xff)	; 将SDA改为输出状态
+	IOW	PORT_IICSDA
+	
+	BC	PORT_IICSDA,IO_IICSDA		; SDA输出低
+	CALL	IICDELAY
+	CALL	IICSCL_H
+	CALL	IICDELAY
+	BS	PORT_IICSDA,IO_IICSDA		; SDA输出高
+
+	RET
+;-------------------------------------------------------------------------------
+IICSENDACK:	;(stack+1)
+	BC	PORT_IICSDA,IO_IICSDA		;ACK = 0
+	JMP	IICACK
+
+IICSENDNOACK:	;(stack+1)
+	BS	PORT_IICSDA,IO_IICSDA		;ACK = 1
+IICACK:
+	IOR	PORT_IICSDA
+	AND	A,@((1<<IO_IICSDA)^0xff)	;将SDA线改为输出
+	IOW	PORT_IICSDA
+	
+	CALL	IICDELAY
+	CALL	IICSCL_H
+	CALL	IICDELAY
+
+	BC	PORT_IICSCL,IO_IICSCL		;SCL = low
+	
+	RET
+	
+;-------------------------------------------------------------------------------
+IICGETACK:	;(stack+1)
+	IOR	PORT_IICSDA
+	OR	A,@(1<<IO_IICSDA)			; 将SDA线改为输入状态
+	IOW	PORT_IICSDA
+
+	CALL	IICDELAY
+	CALL	IICDELAY			; 延时5us
+	CALL	IICSCL_H			; 拉高SCL线
+	CALL	IICDELAY			; 延时5us
+
+	ANDA	PORT_IICSDA,@(1<<IO_IICSDA)	; 得到ACK状态,(z)
+
+	BC	PORT_IICSCL,IO_IICSCL		; 拉低SCL线
+	
+	RET
+;-------------------------------------------------------------------------------
+IICSENDBYTE:	;(stack+1)
+	MOV	TEMP0,A
+	MOV	TEMP1,@(8)			; 一次发送8位
+	
+	IOR	PORT_IICSDA
+	AND	A,@((1<<IO_IICSDA)^0XFF)	; 将SDA线改为输出
+	IOW	PORT_IICSDA
+IICSENDBYTE_LOOP:
+	CALL	IICDELAY
+	
+	JPB	TEMP0,7,$+3			; 数据从最高位开始发送
+	BC	PORT_IICSDA,IO_IICSDA		; 改变SDA线的状态
+	JMP	$+2
+	BS	PORT_IICSDA,IO_IICSDA		; 改变SDA线的状态
+
+	RLC	TEMP0
+	
+	CALL	IICSCL_H
+	CALL	IICDELAY			; 延时5us
+;---SCL = LOW	
+	BC	PORT_IICSCL,IO_IICSCL		; 拉低SCL线
+
+	DJZ	TEMP1
+	JMP	IICSENDBYTE_LOOP
+	RET
+
+;-------------------------------------------------------------------------------
+IICRECEBYTE:	;(stack+1)
+	IOR	PORT_IICSDA
+	OR	A,@(1<<IO_IICSDA)		;SDA as a input-port
+	IOW	PORT_IICSDA
+
+	MOV	TEMP1,@(8)
+	CLR	TEMP0
+IICRECEBYTE_LOOP:
+	CALL	IICDELAY			; Delay during SCL = low
+	CALL	IICSCL_H			; wait then Set SCL = high
+	CALL	IICDELAY
+	
+	BC	_STATUS,C
+	JBC	PORT_IICSDA,IO_IICSDA		; 读SDA的状态
+	BS	_STATUS,C
+
+	RLC	TEMP0				; stor data
+	BC	PORT_IICSCL,IO_IICSCL		; SCL = low
+	DJZ	TEMP1
+	JMP	IICRECEBYTE_LOOP
+	MOV	A,TEMP0
+
+	RET
+;-------------------------------------------------------------------------------
+;	Send data in current block currnet address(_RC)
+;-------------------------------------------------------------------------------
+SEND2B_COMMAND:			;(stack+2)
+	JBC	_P7,5	;DC ?
+	RET
+	
+	CALL	IICSTART
+;-
+	MOV	A,@0X40		;write address(0x20)
+	CALL	IICSENDBYTE
+	CALL	IICGETACK
+	JPNZ	SEND2B_COMMAND_AGAIN
+;-	
+	BLOCK	1
+	MOV	_RC,@COMMAND
+
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the first Byte
+	CALL	IICGETACK
+	JPNZ	SEND2B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the second Byte
+	CALL	IICGETACK
+	JPNZ	SEND2B_COMMAND_AGAIN
+	INC	_RC
+;-
+	CALL	IICSTOP
+
+	RET
+SEND2B_COMMAND_AGAIN:
+	CALL	IICSTOP
+	CALL	IICDELAY
+	CALL	IICDELAY
+
+	JMP	SEND2B_COMMAND
+;-------------------------------------------------------------------------------
+SEND4B_COMMAND:		;(stack+2)
+	JBC	_P7,5	;DC ?
+	RET
+	CALL	IICSTART
+;-
+	MOV	A,@0X40		;write address(0x20)
+	CALL	IICSENDBYTE
+	CALL	IICGETACK
+	JPNZ	SEND4B_COMMAND_AGAIN
+	
+	BLOCK	1
+	MOV	_RC,@COMMAND
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the first Byte
+	CALL	IICGETACK
+	;JPNZ	SEND4B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the second Byte
+	CALL	IICGETACK
+	;JPNZ	SEND4B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the third Byte
+	CALL	IICGETACK
+	;JPNZ	SEND4B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the forth Byte
+	CALL	IICGETACK
+	;JPNZ	SEND4B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	CALL	IICSTOP
+
+	RET
+
+SEND4B_COMMAND_AGAIN:
+	CALL	IICSTOP
+	CALL	IICDELAY
+	CALL	IICDELAY
+
+	JMP	SEND4B_COMMAND
+;-------------------------------------------------------------------------------
+SEND6B_COMMAND:		;(stack+2)
+	JBC	_P7,5	;DC ?
+	RET
+	
+	CALL	IICSTART
+;-
+	MOV	A,@0X40		;write address(0x20)
+	CALL	IICSENDBYTE
+	CALL	IICGETACK
+	JPNZ	SEND6B_COMMAND_AGAIN
+	
+	BLOCK	1
+	MOV	_RC,@COMMAND
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the first Byte
+	CALL	IICGETACK
+	;JPNZ	SEND6B_COMMAND_AGAIN
+	INC	_RC		
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the second Byte
+	CALL	IICGETACK
+	;JPNZ	SEND6B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the third Byte
+	CALL	IICGETACK
+	;JPNZ	SEND6B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the forth Byte
+	CALL	IICGETACK
+	;JPNZ	SEND6B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the fifth Byte
+	CALL	IICGETACK
+	;JPNZ	SEND6B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	MOV	A,_RD
+	CALL	IICSENDBYTE	;the sixth Byte
+	CALL	IICGETACK
+	;JPNZ	SEND6B_COMMAND_AGAIN
+	INC	_RC	
+;-	
+	CALL	IICSTOP
+
+	RET
+
+SEND6B_COMMAND_AGAIN:
+	CALL	IICSTOP
+	CALL	IICDELAY
+	CALL	IICDELAY
+
+	JMP	SEND6B_COMMAND
+;-------------------------------------------------------------------------------
+;	Get respone and stor
+;-------------------------------------------------------------------------------
+RECE2B_RESPOND:		;(stack+2)
+	JBC	_P7,5	;DC ?
+	RET
+
+	JBS	PORT_DSPREQ,IO_DSPREQ
+	JMP	$-1		;Protocal require(busy=high,then receiving respone allowed)
+RECE2B_RESPONE_LOOP:
+		
+	CALL	IICSTART
+;-
+	MOV	A,@0X41		;write address(0x20)
+	CALL	IICSENDBYTE
+	CALL	IICGETACK
+	JPNZ	RECE2B_RESPONE_AGAIN
+		
+	BLOCK	1
+	MOV	_RC,@RESPOND
+;-	
+	CALL	IICRECEBYTE	;the first Byte
+	MOV	_RD,A
+	CALL	IICSENDACK
+	INC	_RC	
+;-	
+	CALL	IICRECEBYTE	;the second Byte
+	MOV	_RD,A
+	CALL	IICSENDNOACK
+	INC	_RC	
+;-	
+	CALL	IICSTOP
+
+	RET
+RECE2B_RESPONE_AGAIN:
+	CALL	IICSTOP
+	CALL	IICDELAY
+	CALL	IICDELAY
+
+	JMP	RECE2B_RESPONE_LOOP
+;-------------------------------------------------------------------------------
+;	STOR COMMAND
+;	INPUT : TEMP0,TEMP1,TEMP2,TEMP3,,TEMP4,TEMP5
+;	OUTPUT: NO
+;-------------------------------------------------------------------------------
+STOR_COMMAND:
+;---
+	BLOCK	1
+	MOV	_RC,@COMMAND
+
+	MOV 	_RD,TEMP0
+	INC	_RC
+	MOV 	_RD,TEMP1
+	INC	_RC
+	MOV 	_RD,TEMP2
+	INC	_RC
+	MOV 	_RD,TEMP3
+	INC	_RC
+	MOV 	_RD,TEMP4
+	INC	_RC
+	MOV 	_RD,TEMP5
+	INC	_RC
+
+	RET
+;-------------------------------------------------------------------------------
+;	Get respond
+;	INPUT : 
+;	OUTPUT: TEMP0,TEMP1
+;-------------------------------------------------------------------------------
+GET_RESPOND:
+;---
+	BLOCK	1
+	MOV	_RC,@RESPOND
+
+	MOV 	TEMP0,_RD
+	INC	_RC
+	MOV 	TEMP1,_RD
+	INC	_RC
+	
+	RET
+;-------------------------------------------------------------------------------
+;	Get old command
+;	INPUT : 
+;	OUTPUT: TEMP0,TEMP1
+;-------------------------------------------------------------------------------
+GET_COMMAND:
+;---
+	BLOCK	1
+	MOV	_RC,@COMMAND
+
+	MOV 	TEMP0,_RD
+	INC	_RC
+	MOV 	TEMP1,_RD
+/*
+	INC	_RC
+	MOV 	TEMP2,_RD
+	INC	_RC
+	MOV 	TEMP3,_RD
+	INC	_RC
+	MOV 	TEMP4,_RD
+	INC	_RC
+	MOV 	TEMP5,_RD
+	INC	_RC
+*/
+	
+	RET	
+;-------------------------------------------------------------------------------

@@ -1,0 +1,863 @@
+ORG	(6<<10)
+;-------------------------------------------------------------------------------
+CID_FUNC:
+	BANK	1
+	
+	MOV	A,B1_PRO_VAR
+	AND	A,@0X03
+	MTBL
+	JMP	CID_FUNC_0	;0 - Enter
+	JMP	CID_FUNC_1	;1 - Lookup
+	JMP	CID_FUNC_END	;2 
+	JMP	CID_FUNC_END	;3
+	ENDT
+;return
+CID_FUNC_END:	
+	LJMP	MAIN_LOOP
+;-------------------------------------------------------------------------------
+;	B1_PRO_VAR	bit(0,1) = the program status
+;			bit2 = 
+;			bit3 = 1/0 - dial/Cid
+;			bit4 = 
+;			bit5 = DelAll-flag
+;			bit6 = DelCur-flag
+;			bit7 = from receive NEW-CID
+;
+;-------------------------------------------------------------------------------
+CID_FUNC_0:
+	
+	MOV	A,@CLOOK_DIAL
+	SUB	A,B1_MSG
+	JPZ	CID_FUNC_0_LOOKDIL	;lookup dialed-num
+
+	MOV	A,@CLOOK_CID
+	SUB	A,B1_MSG
+	JPZ	CID_FUNC_0_LOOKCID	;lookup Cid-num
+	
+	MOV	A,@CMSG_CID
+	SUB	A,B1_MSG
+	JPZ	CID_FUNC_0_STORCID
+
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_FUNC_0_STORCID:		;stor and then display the CID
+	RTC_DISP_DISABLE
+;---Copy to edit-zone first
+	MOV	BASE_ADDR,@0X21		;s-block and d-block
+	MOV	OFFSET_S,@CIDTEL_FLAG	;source
+	MOV	OFFSET_D,@TEL_FLAG	;destination
+	MOV	COUNT,@55		;count
+	PAGE	#(COPY_DATA)
+	CALL	COPY_DATA
+;---Clean the timer	
+	CLR	B1_PRO_VAR1
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+;---Check message-wait or not
+	BLOCK	1
+	MOV	A,@TEL_FLAG
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	;JPZ	CID_FUNC_0_STORCID_NORMAL
+	SUB	A,@3
+	JPZ	CID_FUNC_0_STORCID_MSGWAIT
+	MOV	A,TEMP0
+	SUB	A,@4
+	JPZ	CID_FUNC_0_STORCID_MSGWAIT
+	
+CID_FUNC_0_STORCID_NORMAL:
+	LCALL	COMP_ALLTELNUM
+	OR	A,@0		;To verify Z-flag
+	JPZ	CID_FUNC_0_STORCID_COMPARED
+;---The phonebook had been found(Same TEL-number),then covered the name only
+	MOV	A,@(M123_BUF_START+NAME_FGOFFSET)
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	MOV	A,@(TEL_FLAG+NAME_FGOFFSET)
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A					;length update
+
+	MOV	OFFSET_S,@(M123_BUF_START+NAME_OFFSET)	;source
+	MOV	OFFSET_D,@(TEL_FLAG+NAME_OFFSET)	;destination
+	MOV	COUNT,@15				;count
+	PAGE	#(MOVE_DATA)
+	CALL	MOVE_DATA
+CID_FUNC_0_STORCID_COMPARED:
+;---Check the number of total CID--------------------------------------------------------
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	PAGE	#(SET_INITTEL0IDX)
+	CALL	SET_INITTEL0IDX
+	MOV	A,@CGROUP_MISSCID	;Set Cid-group
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+
+CID_FUNC_0_STORCID_CHKTOTAL:	
+	LCALL	GET_TELT
+	MOV	A,TEMP0
+	SUB	A,@(CMAX_MISSCID-1)
+	JPC	CID_FUNC_0_STORCID_DO
+;---The number over (CMAX_MISSCID-1),delete the oldest one
+	MOV	A,@1
+	PAGE	#(DEL_TEL)
+	CALL	DEL_TEL
+	LCALL	TEL_GC_CHK
+	JMP	CID_FUNC_0_STORCID_CHKTOTAL
+CID_FUNC_0_STORCID_DO:
+;---write into flash
+	MOV	OFFSET_S,@DATA_ZONE_START		;start address
+	MOV	COUNT,@(DATA_ZONE_END-DATA_ZONE_START)	;length(55bytes)
+CID_FUNC_0_STORCID_DOLOOP:
+	BLOCK	1
+
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	LCALL	DAT_WRITE
+	
+	INC	OFFSET_S
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	CID_FUNC_0_STORCID_DOLOOP
+	PAGE	#(DAT_WRITE_STOP)
+	CALL	DAT_WRITE_STOP	
+;---
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0	
+	MOV	B1_CID_T,A	;Total CID record
+
+	SET_NEWESTCID_FLAG	;the newest CID exist
+;---------------------------------------
+;---Display CID
+	BLOCK	1
+	BANK	1
+	MOV	A,@TIME_START
+	MOV	_RC,A
+
+	MOV	A,_RD
+	MOV	B1_MON_REG,A	;Month
+	INC	_RC
+
+	MOV	A,_RD
+	MOV	B1_DAY_REG,A	;Day
+	INC	_RC
+	
+	MOV	A,_RD
+	MOV	B1_HOUR_REG,A	;Hour
+	INC	_RC
+
+	MOV	A,_RD
+	MOV	B1_MIN_REG,A	;Minute
+	INC	_RC
+;---
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM1
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR	
+;-the first icon
+	MOV	A,@((1<<5)|(1<<2))	;":","/"
+	CALL	VGASTAMP1
+	MOV	A,@((1<<3)|(1<<2))	;"CALL","NEW"
+	CALL	VGASTAMP2
+	CALL	VGADRAWSTAMP	
+;-first line date/time
+	CALL	DISP_DATETIME
+;-first line TEL-ID
+	MOV	A,B1_CID_T
+	CALL	DISP_ID
+	;PAGE	#($)
+;---Set DSP Date/Time	
+	LCALL	CALC_WEEK
+	JPNC	CID_FUNC_0_STORCID_NUM
+	MOV	B1_WEEK_REG,A
+	
+	PAGE	#(SET_TIME)
+	CLRA
+	CALL	SET_SEC		;clear the second
+	MOV	A,B1_YEAR_REG
+	CALL	SET_YEAR
+	MOV	A,B1_MON_REG
+	CALL	SET_MON
+	MOV	A,B1_DAY_REG
+	CALL	SET_DAY
+	MOV	A,B1_WEEK_REG
+	CALL	SET_WEEK
+	MOV	A,B1_HOUR_REG
+	CALL	SET_HOUR
+	MOV	A,B1_MIN_REG
+	CALL	SET_MIN
+	PAGE	#($)
+	
+CID_FUNC_0_STORCID_NUM:
+;---号码在第二行显示
+	PAGE	#(DISP_TELNUM)
+	CALL	DISP_TELNUM	;---号码在第二行显示
+	CALL	DISP_TELNAME	;---姓名在第三行显示
+	;PAGE	#($)
+;---
+	MOV	A,@0X01
+	MOV	B1_PRO_VAR,A
+
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_FUNC_0_STORCID_MSGWAIT:
+	JMP	CID_1_MKEY_STP
+;---------------------------------------
+CID_FUNC_0_LOOKCID:
+	MOV	A,@0X01
+	MOV	B1_PRO_VAR,A
+		
+	MOV	A,@CGROUP_MISSCID
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR1S
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0	
+	MOV	B1_CID_T,A
+	MOV	B1_MSG_ID,A		;Must load the data before jump because the TEL-flush need check data
+	JPZ	CID_FUNC_0_NOCID
+;---
+	JMP	CID_1_LOOKUP
+;-----------------------------
+CID_FUNC_0_LOOKDIL:
+;---set Group	
+	MOV	A,@GROUP_DIAL
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_MSG_ID,A
+	MOV	B1_CID_T,A		;Total tel record
+	
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR1S
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+	PAGE	#($)
+	CLR	B1_PRO_VAR1
+
+	MOV	B1_PRO_VAR,@0x09	;!!!bit3 dial
+CID_LOOK_DIAL:
+	MOV	A,B1_CID_T
+	JPZ	DISP_NOCALL		;
+	
+	MOV	A,B1_MSG_ID
+	JPZ	DISP_ENDLIST
+;---
+	BC	B1_PRO_VAR,5		;DelAll-flag
+	BC	B1_PRO_VAR,6		;DelCur-flag
+;---读出数据	
+	MOV	OFFSET_D,@DATA_ZONE_START
+CID_READDIAL_LOOP:
+	MOV	A,B1_MSG_ID
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	CID_READDIAL_LOOP
+	PAGE	#(DAT_READ_STOP)
+	CALL	DAT_READ_STOP
+DIAL_1_DIALDISP:
+;---LCD	blank	
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;-first line date/time
+	MOV	A,@(STYLE_RIGHT+STYLE_TOBCD)	;!!!
+	CALL	VGANUM1
+	MOV	A,B1_MSG_ID
+	CALL	VGANUM1
+	MOV	A,@(CH_END)
+	CALL	VGANUM1
+	CALL	VGADRAWNUM1
+	PAGE	#($)
+DIAL_1_DIALDISP_NUM:
+;---号码在第二行显示
+	BLOCK	1
+	MOV	BASE_ADDR,@0X10		;base
+	MOV	OFFSET_S,@NUM_START	;source
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	MOV	COUNT,A
+;---Adjust COUNT
+	MOV	A,COUNT
+	SUB	A,@LENGTH2NDL
+	JPC	DIAL_1_DIALDISP_NUM_2	;check length
+	
+	MOV	COUNT,@14
+DIAL_1_DIALDISP_NUM_2:
+	LCALL	COPY_DATA
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	SUB	A,@LENGTH2NDL
+	JPC	DIAL_1_DIALDISP_3
+;---more than 15,display it two steps,the step1 display 14-bytes end with "-",the step2 display the remained start with "-"	
+	BLOCK	0
+	MOV	_RC,@(LCD_2NDLINE+LENGTH2NDL-1)
+	MOV	_RD,@NUM_AMPERE
+	
+DIAL_1_DIALDISP_3:
+DIAL_1_DIALDISP_NAME:
+;---通话时间在第三行显示
+	BLOCK	1
+	MOV	A,@PMIN_START
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	B1_MIN_REG,A
+
+	MOV	A,@PSEC_START
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	B1_SEC_REG,A
+
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	
+	SWAPA	B1_MIN_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,B1_MIN_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,@(CH_AMPERE)
+	CALL	VGACHAR
+	SWAPA	B1_SEC_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,B1_SEC_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+;---刷新第一二三行	
+	REFURBISH_1AND2AND3L		
+
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_FUNC_0_NOCID:
+DISP_NOCALL:
+	RTC_DISP_ENABLE
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2	
+	CALL	VGABLANKCHAR
+	MOV	A,@~((1<<3)|(1<<2)|(1<<1)|(1<<0))	;"CALL","NEW","RET","MSG"
+	CALL	CLRVGASTAMP2
+	CALL	VGADRAWSTAMP
+;---First line index	
+	MOV	A,@(STYLE_RIGHT)	;!!!
+	CALL	VGANUM1
+	MOV	A,@NUM_BLANK
+	CALL	VGANUM1
+	MOV	A,@NUM_BLANK
+	CALL	VGANUM1
+
+	MOV	A,@(CH_END)
+	CALL	VGANUM1
+	CALL	VGADRAWNUM1
+;-third line
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@12		;NO
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@2		;CALLS
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+
+	JMP	CID_FUNC_END
+;---------------------------------------
+DISP_ENDLIST:
+	RTC_DISP_ENABLE
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	
+	MOV	A,@~((1<<3)|(1<<2)|(1<<1)|(1<<0))	;"CALL","NEW","RET","MSG"
+	CALL	CLRVGASTAMP2
+	CALL	VGADRAWSTAMP
+;---First line index off
+	MOV	A,@ID_BLANK
+	CALL	DISP_ID
+;-third line
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@37		;END
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@38		;OF
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@39		;LIST
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+
+	JMP	CID_FUNC_END
+;---------------------------------------
+DISP_DELALLCALLS_DISP:
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@50		;DEL
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@49		;ALL
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)	
+	CALL	VGACHAR
+	MOV	A,@2		;CALLS
+	CALL	VGASTRING
+	MOV	A,@(CH_INTE)	;?
+	CALL	VGACHAR
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+
+	JMP	CID_FUNC_END
+;---------------------------------------
+DISP_DELETECALL_DISP:
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@4		;DELETE
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@51		;CALL
+	CALL	VGASTRING
+	MOV	A,@(CH_INTE)	;?
+	CALL	VGACHAR
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+
+	JMP	CID_FUNC_END
+;-------------------------------------------------------------------------------
+CID_FUNC_1:
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	CID_1_MKEY
+	
+	MOV 	A,@CMSG_CKEY
+	SUB 	A,B1_MSG
+	JPZ 	CID_1_CKEY
+	
+	MOV 	A,@CMSG_BKEY
+	SUB 	A,B1_MSG
+	JPZ 	CID_1_BKEY
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	CID_1_TMR
+	
+	MOV	A,@CMSG_CID
+	SUB	A,B1_MSG
+	JPZ	CID_FUNC_0_STORCID	;收到新的CID
+	
+	MOV 	A,@CRDY_CID
+	SUB 	A,B1_MSG
+	JPZ 	CID_FUNC_ROFF
+	
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_FUNC_ROFF:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	
+	PAGE	#(MODE9_LON)
+	CALL	MODE9_LON
+	PAGE	#(DAA_OFF)
+	CALL	DAA_OFF
+	PAGE	#(LINE_START)
+	CALL	LINE_START
+	PAGE	#($)
+	
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_MKEY:
+	MOV	A,@CTMR2S
+	LCALL	SET_PTIMER	;
+	
+	CLR	B1_PRO_VAR1	;TimeOut counter clean
+;---	
+	MOV	A,@CKEY_PBK
+	LCALL	KEY_CHK
+	JPNC	CID_1_MKEY_BOOK
+	
+	MOV	A,@CKEY_UP
+	LCALL	KEY_CHK
+	JPNC	CID_1_MKEY_UP
+	MOV	A,@CKEY_DWN
+	LCALL	KEY_CHK
+	JPNC	CID_1_MKEY_DWN
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	CID_1_MKEY_DEL
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	CID_1_MKEY_STP
+
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	CID_1_MKEY_SPK
+
+	JMP	CID_FUNC_END
+;-------------------
+CID_1_MKEY_BOOK:
+	RTC_DISP_ENABLE
+	
+	;PAGE	#(VGA)
+	;CALL	VGABLANKSTAMP
+	;CALL	VGABLANKNUM1
+	;PAGE	#($)
+		
+	MOV	A,@CCID_EDIT
+	PAGE	#(KSTOR_MSG)
+	CALL	KSTOR_MSG
+	CALL	KCLR_PRO_STACK
+	PAGE	#($)
+	
+	CLR	B1_PRO_VAR
+
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_MKEY_UP:
+	
+	MOV	TEMP1,@0	;min
+	MOV	TEMP2,B1_CID_T	;max
+	
+	MOV	A,B1_MSG_ID
+	LCALL	VALUE_INC
+	MOV	B1_MSG_ID,A
+
+	JMP	CID_1_LOOKUP
+;---------------------------------------
+CID_1_MKEY_DWN:
+	
+	MOV	TEMP1,@0	;min
+	MOV	TEMP2,B1_CID_T	;max
+	
+	MOV	A,B1_MSG_ID
+	LCALL	VALUE_DEC
+	MOV	B1_MSG_ID,A
+	;JMP	BOOK_FUNC_END
+CID_1_LOOKUP:
+	BC	B1_PRO_VAR,6		;Clear Del flag
+CID_1_LOOKUP_AFTERDEL:
+	CLR	B1_PRO_VAR1
+
+	MOV	A,B1_CID_T
+	JPZ	CID_FUNC_0_NOCID	;
+	
+	MOV	A,B1_MSG_ID
+	JPZ	DISP_ENDLIST
+;---------------------------------------
+CID_1_LOOKUPCID:
+	
+	JPB	B1_PRO_VAR,3,CID_LOOK_DIAL
+	
+	RTC_DISP_DISABLE
+;---Clean New-flag	
+	MOV	A,B1_MSG_ID
+	PAGE	#(GET_TEL0IDX)
+	CALL	GET_TEL0IDX
+
+	MOV	A,TEMP0
+	MOV	B1_YEAR_REG,A	;!!!Save the new-flag && VP-msg-flag
+
+	MOV	A,B1_MSG_ID
+	MOV	TEMP0,A
+	MOV	A,B1_YEAR_REG
+	AND	A,@0X7F	
+	PAGE	#(SET_TEL0IDXF)
+	CALL	SET_TEL0IDXF
+	;PAGE	#($)
+;---读出数据	
+	MOV	OFFSET_D,@DATA_ZONE_START
+CID_1_READCID_LOOP:
+	MOV	A,B1_MSG_ID
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	CID_1_READCID_LOOP
+	PAGE	#(DAT_READ_STOP)
+	CALL	DAT_READ_STOP
+	
+CID_1_CIDDISP:
+	BLOCK	1
+	BANK	1
+	
+	MOV	A,@TIME_START
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	B1_MON_REG,A		;Month
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_DAY_REG,A		;Day
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_HOUR_REG,A		;Hour
+	INC	_RC
+	MOV	A,_RD
+	MOV	B1_MIN_REG,A		;Minute
+	;INC	_RC
+;---
+	MOV	A,B1_YEAR_REG
+	LCALL	SET_CIDFLAG
+	MOV	B1_YEAR_REG,A		;"MSG"/"NEW"
+;---LCD	blank	
+	PAGE	#(VGA)
+	MOV	A,@~((1<<3)|(1<<2)|(1<<1)|(1<<0))	;"CALL","NEW","RET","MSG"
+	CALL	CLRVGASTAMP2
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;-the first icon
+	MOV	A,@((1<<5)|(1<<2))	;":","/"
+	CALL	VGASTAMP1
+	
+	MOV	A,B1_YEAR_REG
+	OR	A,@(1<<3)		;"CALL"
+	CALL	VGASTAMP2
+	CALL	VGADRAWSTAMP
+;-first line date/time
+	PAGE	#(DISP_DATETIME)
+	CALL	DISP_DATETIME
+	MOV	A,B1_MSG_ID
+	PAGE	#(DISP_ID)
+	CALL	DISP_ID
+;CID_1_CIDDISP_NUM:
+	PAGE	#(DISP_TELNUM)
+	CALL	DISP_TELNUM	;---号码在第二行显示
+	CALL	DISP_TELNAME	;---姓名在第三行显示
+	PAGE	#($)
+
+	REFURBISH_1AND2AND3L	;---刷新第一二三行			
+	
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_MKEY_DEL:
+	JPB	B1_PRO_VAR,5,CID_1_MKEY_DODELALL
+	JPB	B1_PRO_VAR,6,CID_1_MKEY_DODELONE
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+CID_1_MKEY_DODELONE:
+;---
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@47		;DELETE...
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+;---	
+	MOV	A,B1_MSG_ID
+	PAGE	#(DEL_TEL)
+	CALL	DEL_TEL
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A
+	
+	MOV	A,B1_MSG_ID
+	SUB	A,B1_CID_T
+	JPC	CID_1_LOOKUP_AFTERDEL
+	
+	CLR	B1_MSG_ID
+	
+	JMP	CID_1_LOOKUP_AFTERDEL
+;---------------------------------------
+CID_1_MKEY_DODELALL:
+	
+	PAGE	#(DEL_TEL)
+	MOV	A,@1
+	CALL	DEL_TEL
+	
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0
+	JPNZ	CID_1_MKEY_DODELALL	;Delete until no tel exist
+	
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+	PAGE	#($)
+	
+	CLR	B1_CID_T	;Total tel record
+	CLR	B1_MSG_ID
+	
+	JMP	CID_1_LOOKUP_AFTERDEL
+;---------------------------------------
+CID_1_MKEY_SPK:
+	RTC_DISP_ENABLE
+	
+	MOV	A,@CDIAL_OUT
+	PAGE	#(KSTOR_MSG)
+	CALL	KSTOR_MSG
+	CALL	KCLR_PRO_STACK
+	PAGE	#($)
+	
+	CLR	B1_PRO_VAR
+	
+	JMP	CID_FUNC_END
+;-------------------	
+CID_1_MKEY_STP:	
+	JMP	CID_1_TMROUT
+;---------------------------------------
+CID_1_CKEY:
+	CLR	B1_PRO_VAR1	;TimeOut counter clean
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	CID_1_CKEY_DEL
+	
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_BKEY:
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	CID_1_BKEY_DEL
+	
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_CKEY_DEL:
+	MOV	A,B1_CID_T
+	JPZ	CID_FUNC_END
+	
+	BS	B1_PRO_VAR,5
+
+	JMP	DISP_DELALLCALLS_DISP	;!!!!!!Display "delete all?"
+;---------------------------------------	
+CID_1_BKEY_DEL:
+	JPB	B1_PRO_VAR,5,CID_FUNC_END	;Check Del all flag
+	
+	MOV	A,B1_MSG_ID
+	JPZ	CID_FUNC_END
+	
+	MOV	A,B1_PRO_VAR
+	XOR	A,@(1<<6)
+	MOV	B1_PRO_VAR,A	;Delete flag(Because confirm delete will generate a ask delete event ,so only lookup CID can clean the delete flag,except lookup the next CID)
+
+	JPNB	B1_PRO_VAR,6,CID_FUNC_END	;Don't clean the flag when do delete,it can avoid set delete-flag after delete key release in doing delete
+	
+	JMP	DISP_DELETECALL_DISP	
+;---------------------------------------
+CID_1_TMR:
+	INC	B1_PRO_VAR1
+;---time out	
+	MOV	TEMP0,@4	;No calls(4s time out)
+	MOV	A,B1_CID_T
+	JPZ	CID_1_TMR_1
+	
+	MOV	TEMP0,@10	;(10s time out)
+CID_1_TMR_1:	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,TEMP0
+	JPNC	CID_1_TMROUT
+	
+	MOV	A,B1_MSG_ID
+	JPZ	CID_FUNC_END	;End of list
+;---check alternate when the length longer than 15 bytes
+	BLOCK	1
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F	
+	SUB	A,@LENGTH2NDL
+	JPC	CID_FUNC_END
+;---The length longer than "LENGTH2NDL",then alternate display
+	LCALL	VGABLANKNUM2
+	REFURBISH_2NDL
+
+	JPB	B1_PRO_VAR1,0,CID_1_TMR_ALTER_1
+
+	LCALL	DISP_TAILNUM
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_TMR_ALTER_1:
+
+	LCALL	DISP_TELNUM
+	JMP	CID_FUNC_END
+;---------------------------------------
+CID_1_TMROUT:
+	RTC_DISP_ENABLE
+
+	PAGE	#(VGABLANKSTAMP)
+	CALL	VGABLANKSTAMP	
+
+	MOV	A,@CMSG_INIT
+	PAGE	#(KSTOR_MSG)
+	CALL	KSTOR_MSG
+	CALL	KCLR_PRO_STACK
+	PAGE	#($)
+
+	CLR	B1_PRO_VAR
+	
+	JMP	CID_FUNC_END	
+;-------------------------------------------------------------------------------

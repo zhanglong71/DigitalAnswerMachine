@@ -1,0 +1,39 @@
+可收FSK-CID
+
+换上D20_070919V1的BIO,起始地址改成0X4400(D22是0X4800)可收DTMF-CID
+
+可放MIDI,可停止放MIDI
+
+可根据TEL-ID读写TEL,COMP_ONETELNUM/COMP_ALLDAT/COMP_ALLTELNUM/COMP_ALLTEL可用
+
+遥控可用,但1203版的BIOS不能正常收DTMF控制信号(已查明系0X5F46命令的设置错误)
+
+可正常解码FSK/DTMF,可正确找到相同的CID,可正确找到相同的CID(其中姓名长度为0)
+
+将INITDSP独立成块
+
+初始化全部完毕,DTMF-CI也可以(临时将C当D,因为CID不能以C开头)
+
+可正常处理号码:长度大于16/private/unavailabe
+
+改正MSG_LED的端口错,use INT_TTMP1,Set/Reset GPBD.5
+
+改正有M1/M2/M3时的上电取设置错(没有对OFFSET初始化).
+
+加入版本号;CID条目数大于99条时,删除最早写入的一条;
+
+Declare TEL-message Number in FLASH after format flash
+
+ALC-off in standby mode except record memo/answer/line-monitor
+
+修复DTMF-CID故障.可连续收france
+
+免提/手柄提机时不做HOOK_OFF操作(猜想由于HOOK标记置位而造成VOX/CTONE/BTONE消息的泛滥)
+
+2008-3-25改变OGM录音命令到消息的处理方式;
+
+2008-3-26改变收到07f命令后的处理方式；
+
+2008-4-1:This version is ok to BIOS-d22_071213V1 in TEL-mode,but have some bug to BIOS-d22_080313V1 in TEL-mode.
+
+2008-4-2:关于已接来电部分功能正确,但MCU没有更新总条目数;MCU条目数OK

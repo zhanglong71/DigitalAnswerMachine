@@ -1,0 +1,291 @@
+.LIST
+;-------------------------------------------------------------------------------
+;	ANNOUNCE_NUM
+;-------------------------------------------------------------------------------
+
+ANNOUNCE_NUM:
+	SAH	SYSTMP3
+	BS	SGN,ANNOUNCE_NUM_END	;小于0
+		
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,ANNOUNCE_NUM_FR
+	SBHK	1
+	BS	ACZ,ANNOUNCE_NUM_NL
+;---English	
+	LAC	SYSTMP3
+	BS	ACZ,ANNOUNCE_NUM_0	;等于0
+	SBHK	21
+	BS	SGN,ANNOUNCE_NUM2	;1..20
+
+	LAC	SYSTMP3
+	CALL	HEX_DGT
+	SAH	SYSTMP3
+
+	SFR	4
+	ADHK	18
+	ORL	0XFF00
+	CALL	STOR_VP
+	
+	LAC	SYSTMP3
+	ANDL	0X0F
+	BS	ACZ,ANNOUNCE_NUM_END
+	ORL	0XFF00
+	CALL	STOR_VP
+	BS	B1,ANNOUNCE_NUM_END
+ANNOUNCE_NUM_0:
+	LACL	0XFF00|VOPIDX_EN_oh
+	CALL	STOR_VP
+	BS	B1,ANNOUNCE_NUM_END
+ANNOUNCE_NUM2:
+	LAC	SYSTMP3
+	ORL	0XFF00
+	CALL	STOR_VP
+ANNOUNCE_NUM_END:
+	
+	RET
+;---------------------------------------
+ANNOUNCE_NUM_FR:	
+;---French
+	LAC	SYSTMP3
+	BS	ACZ,ANNOUNCE_NUM_FR_0	;等于0
+	SBHK	21
+	BS	SGN,ANNOUNCE_NUM_FR2	;1..20
+
+	LAC	SYSTMP3
+	ADHL	FR_START+20			;!!!
+	ORL	0XFF00
+	CALL	STOR_VP
+
+	BS	B1,ANNOUNCE_NUM_FR_END
+ANNOUNCE_NUM_FR_0:
+	LACL	0XFF00|VOPIDX_FR_zero
+	CALL	STOR_VP
+	BS	B1,ANNOUNCE_NUM_FR_END
+ANNOUNCE_NUM_FR2:		;1..20
+	LAC	SYSTMP3
+	ADHK	FR_START			;!!!
+	ORL	0XFF00
+	CALL	STOR_VP
+
+ANNOUNCE_NUM_FR_END:
+	
+	
+	RET
+;---------------------------------------
+ANNOUNCE_NUM_NL:
+;---German
+	LAC	SYSTMP3
+	BS	ACZ,ANNOUNCE_NUM_NL_0	;等于0
+	SBHK	21
+	BS	SGN,ANNOUNCE_NUM_NL2	;1..20
+
+	LAC	SYSTMP3
+	ADHK	NL_START+20			;!!!
+	ORL	0XFF00
+	CALL	STOR_VP
+	BS	B1,ANNOUNCE_NUM_NL_END
+ANNOUNCE_NUM_NL_0:
+	LACL	0XFF00|VOPIDX_NL_Null
+	CALL	STOR_VP
+	BS	B1,ANNOUNCE_NUM_NL_END
+ANNOUNCE_NUM_NL2:		;1..20
+	LAC	SYSTMP3
+	ADHK	NL_START			;!!!
+	ORL	0XFF00
+	CALL	STOR_VP
+
+ANNOUNCE_NUM_NL_END:
+	
+	RET
+;---------------
+;	input : no
+;	output: no
+;---------------
+VP_DefOGM:
+	BIT	EVENT,8
+	BS	TB,VP_DefOGM2
+;---
+VP_DefOGM1:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_DefOGM1_FR
+	SBHK	1
+	BS	ACZ,VP_DefOGM1_DE
+;---English	
+	LACL	0XFF00|VOPIDX_EN_DefOGM1
+	CALL	STOR_VP
+	RET
+VP_DefOGM1_FR:
+	LACL	0XFF00|VOPIDX_FR_DefOGM1
+	CALL	STOR_VP
+	RET
+VP_DefOGM1_DE:
+	LACL	0XFF00|VOPIDX_NL_DefOGM1
+	CALL	STOR_VP
+	RET
+;-------------------
+VP_DefOGM2:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_DefOGM2_FR
+	SBHK	1
+	BS	ACZ,VP_DefOGM2_DE
+	
+	;LACL	0XFF00|VOPIDX_EN_DefOGM2
+	;CALL	STOR_VP
+	
+	;RET
+VP_DefOGM2_FR:
+VP_DefOGM2_DE:
+	LACK	0X005
+	CALL	STOR_VP
+
+	RET
+;---------------
+;	input : no
+;	output: no
+;---------------
+VP_Erased:
+VP_Message:
+VP_Messages:
+	LACK	0X005
+	CALL	STOR_VP
+	RET
+;---------------
+;	input : no
+;	output: no
+;---------------
+VP_MemoryFull:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_MemoryFull_FR
+	SBHK	1
+	BS	ACZ,VP_MemoryFull_DE
+	
+	;LACL	0XFF00|VOPIDX_EN_MemoryIsFull
+	;CALL	STOR_VP
+	
+	;RET
+VP_MemoryFull_FR:
+	LACK	0X005
+	CALL	STOR_VP
+
+	RET
+VP_MemoryFull_DE:
+	LACL	0XFF00|VOPIDX_NL_SpeischerVoll
+	CALL	STOR_VP
+	RET
+;---------------
+;	input : no
+;	output: no
+;---------------
+VP_PleaseSetTime:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_PleaseSetTime_FR
+	SBHK	1
+	BS	ACZ,VP_PleaseSetTime_DE
+	
+	LACL	0XFF00|VOPIDX_EN_TimeIsNotSet
+	CALL	STOR_VP
+	RET
+VP_PleaseSetTime_FR:
+
+	CALL	BEEP
+	RET
+VP_PleaseSetTime_DE:
+	LACL	0XFF00|VOPIDX_NL_BitteTagUnd
+	CALL	STOR_VP
+	RET
+;---------------
+;	input : ACCH = WEEK(0/1/2/3/4/5/6)
+;	output: no
+;---------------
+VP_WEEK:
+	SAH	SYSTMP0
+	
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_WEEK_FR
+	SBHK	1
+	BS	ACZ,VP_WEEK_DE
+	
+	LAC	SYSTMP0
+	ADHL	0XFF00|VOPIDX_EN_Sunday
+	CALL	STOR_VP
+	RET
+VP_WEEK_FR:
+	LAC	SYSTMP0
+	ADHL	0XFF00|VOPIDX_FR_Sunday
+	CALL	STOR_VP
+	RET
+VP_WEEK_DE:
+	LAC	SYSTMP0
+	ADHL	0XFF00|VOPIDX_NL_Sunday
+	CALL	STOR_VP
+	RET
+;---------------
+;	input : no
+;	output: no
+;---------------
+VP_AM:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_AM_FR
+	SBHK	1
+	BS	ACZ,VP_AM_DE
+	
+	LACL	0XFF00|VOPIDX_EN_AM
+	CALL	STOR_VP
+	RET
+VP_AM_FR:
+VP_AM_DE:
+	LACK	0X005
+	CALL	STOR_VP
+	RET
+;---------------
+;	input : no
+;	output: no
+;---------------
+VP_PM:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,VP_PM_FR
+	SBHK	1
+	BS	ACZ,VP_PM_DE
+	
+	LACL	0XFF00|VOPIDX_EN_PM
+	CALL	STOR_VP
+	RET
+VP_PM_FR:
+VP_PM_DE:
+	LACK	0X005
+	CALL	STOR_VP
+	RET
+;-------------------------------------------------------------------------------
+;	Input	:no
+;	Output	:no
+;-------------------------------------------------------------------------------
+ANN_HOUR:
+	CALL	GET_LANGUAGE
+	SBHK	1
+	BS	ACZ,ANN_HOUR_FR
+	SBHK	1
+	BS	ACZ,ANN_HOUR_DE
+	
+	LACK	0X005
+	CALL	STOR_VP
+	
+	RET
+ANN_HOUR_FR:
+	LACL	0XFF00|VOPIDX_FR_heure
+	CALL	STOR_VP
+	RET	
+ANN_HOUR_DE:
+	LACL	0XFF00|VOPIDX_NL_Uhr
+	CALL	STOR_VP
+	RET
+;-------------------------------------------------------------------------------
+.END
+	

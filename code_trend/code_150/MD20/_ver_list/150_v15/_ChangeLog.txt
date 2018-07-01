@@ -1,0 +1,30 @@
+15:16 2008-2-28:功能全部完成;
+
+修改铃声检测。13:17 2008-3-10
+
+16:03 2008-3-15:播放完后做TEL_GC_CHK;录音前设MBOX
+
+2008-3-24 17:04:在03_17_v0944分折出f_init.asm解决由于主模块地址越界而造成的死机(Pbook回拔时).
+
+2008-5-8 pbook1.asm中进入编辑姓名时若找到相同号码的条目就读出,并在号码之后加0XFF才能正式编辑姓名.
+
+
+2008-5-29 暂停时间超时时间改为30s;暂停超时退出/按ON/OFF退出时不发VOP,只发BBEEP;编辑TEL-data按MENU时若最后一位是无效位,则长度减1,长度为0时不能进入下一项;ICM录音时间长度改为40min;播放录音时的WEEK错;
+
+2008-6-27 添加号码本时考虑长度为0的总问题
+
+2008-8-5 菜单OGM不录音;上电初始化后默认新录音BEEP提示关;上电发送信息前加延时;
+
+2008-10-7 改变BEEP停止方式;
+
+2008-10-8 DAA_ANS_SPK/DAA_LIN_SPK中设AGC
+
+2008-11-20 收CID写入FLASH后置时间标志;应答后的音量调节设LINE_VOL错误;
+
+2009-2-23 CODEC-PATH off,then ANAPWR=0xffff else ANAPWR=0
+
+2009-4-8 OGM播放完后开定时(否则背光不灭);修改上电清零
+
+2009-8-25 DAA-SPK/DAA_REC/...所有的通道设定由call 0x5Exx执行
+
+2012-3-3 19:53 VOP has been changed base v14. spanish take place of english, and removed the germany chksum=EA4BAB

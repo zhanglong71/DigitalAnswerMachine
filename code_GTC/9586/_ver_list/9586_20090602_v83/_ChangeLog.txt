@@ -1,0 +1,34 @@
+**********************************************************************************************
+Code	:GTC-9586 
+DSP	:MD22
+**********************************************************************************************
+完毕
+2008-9-1:在v64上电时调用SEND_MSGNUM
+
+2008-9-3 repeat key bug;
+
+2008-9-8 after exit answer/remote erase-all then hlt(0x5EA3->0x5EA2)
+
+2008-9-9 init中的Set_WatchDog丢弃
+
+2008-9-10 Send 0x2D after PowerOn VOP(Press the menu key to setup unit)
+
+2008-9-12 关SPK&功放;
+
+2008-9-18 加入PowerOnDet
+
+2008-9-19 Send 0X2d after erase the OGM.
+
+2008-9-23 Don't send 0x2d after delete the playing OGM;spk-volume come around after GPB12 turn to hign 1000ms later
+
+2008-9-24 Don't send 0x24 while PowerOn
+
+2008-10-20 erase the OGM then open all codec-path when playing OGM.
+
+2008-10-22 play on-off/memo-vop/menu-vop then pickup handset,stop VOP and open codec-path
+
+2009-3-30 /mute＝high之后延迟delay 400ms才恢复正常
+
+2009-4-28 Ringing on time > 140ms and at least 2 pulse, look as ring ON, 以前是200ms 4 pulse;Silence interval > 1100 ms, look as one ring cycle END, 以前是500;Silence > 6000ms, look as call END
+
+2009-6-2 修改CPC/OSI检测方式之条件:1.CPC-port==L持续(OSI_TLEN+CPC_TEL),2.(CPC-port==L)&&(Lin-port==H)持续CPC_TEL时

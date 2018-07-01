@@ -1,0 +1,987 @@
+ORG	(7<<10)
+;-------------------------------------------------------------------------------
+PHONE_FUNC:
+
+	BANK	1
+
+	MOV	A,B1_PRO_VAR	;
+	AND	A,@0X07
+	MTBL
+	JMP	PHONE_0		;0 - wait from start
+	JMP	PHONE_1		;1 - phone
+	JMP	PHONE_2		;2 - Dialing
+	JMP	PHONE_3		;3 - Flash
+	JMP	PHONE_4		;4 - Press num-key in idle
+	JMP	PHONE_5		;5 - EXIT
+	JMP	PHONE_FUNC_END	;6 - reserved
+	JMP	PHONE_FUNC_END	;7 - reserved
+	ENDT
+PHONE_FUNC_END:
+	LJMP	MAIN_LOOP
+;-------------------------------------------------------------------------------
+;B1_PRO_VAR1 use for timer2 counter
+;TIMER1 use for Display or Speakerphone start or FLASH
+;TIMER2 use for dial
+
+;B1_PRO_VAR(2..0) for working status
+;B1_PRO_VAR(bit3) MUTE-flag
+;B1_PRO_VAR(bit4) for 5s waiting status(sec/min/hour not work)
+;B1_PRO_VAR(bit5) the length flag(>32)
+;B1_PRO_VAR(bit6) the dial/not flag
+;B1_PRO_VAR(bit7) the dial pause flag
+;-------------------------------------------------------------------------------
+FLASH_TAB:
+	MTBL	
+	RETL	@1
+	RETL	@3
+	RETL	@6
+	RETL	@10
+	ENDT
+;-------------------------------------------------------------------------------
+PHONE_0:			;Enter work
+
+	MOV	A,@CPHONE_ON
+	SUB	A,B1_MSG
+	JPZ	PHONE_0_PHONEON
+	
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	PHONE_0_TMR
+		
+	MOV	A,@CKEY_NUM
+	SUB	A,B1_MSG
+	JPZ	PHONE_0_NUMKEY
+		
+	MOV 	A,@CDIAL_OUT
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_0_DIAL	;Dial out the displayed tel-num
+	
+	MOV	A,@CHOOK_OFF
+	SUB	A,B1_MSG
+	JPZ	PHONE_0_HOOKOFF	
+	
+	MOV	A,@CHOOK_ON
+	SUB	A,B1_MSG
+	JPZ	PHONE_0_HOOKON
+		
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_0_TMR:
+
+	MOV	B1_PRO_VAR,@0X11	;the bit4=1 => waiting for 5s timer(the sec/min/hour not work)
+	DAM_SPK_ENABLE
+	
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	;LCALL	PHONE_START
+	
+	JMP	PHONE_FUNC_END	
+;---------------------------------------
+PHONE_0_NUMKEY:
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	CLR	B1_PRO_VAR1
+	CALL	CLR_TELQUE
+
+	MOV	A,B1_MSG_N
+	CALL	STOR_TELQUE
+	
+	MOV	B1_PRO_VAR,@0X4
+	MOV	B1_CID_T,@1		;the number of num-key pressed
+
+PHONE_0_NUMKEY_DISP:
+PHONE_4_NUMKEY_DISP:
+;---
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	PAGE	#($)
+	
+	MOV	A,B1_CID_T
+	SUB	A,@30
+	JPC	PHONE_4_NUMKEY_DISP30MORE
+;--More than 30-bytes	
+	MOV	BASE_ADDR,@0X10	
+	MOV	A,@30
+	SUB	A,B1_CID_T
+	ADD	A,@NUM_START
+	MOV	OFFSET_S,A		;source address
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination address
+	MOV	COUNT,@30		;length
+	LCALL	COPY_DATA	
+;---	
+	JMP	PHONE_FUNC_END	
+;-------------------
+PHONE_4_NUMKEY_DISP30MORE:		;少于或等于30Bytes
+	MOV	BASE_ADDR,@0X10	
+	MOV	OFFSET_S,@NUM_START	;source address
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination address
+	MOV	COUNT,B1_CID_T		;length
+	LCALL	COPY_DATA
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_0_HOOKOFF:
+	
+	JMP	PHONE_0_START
+;---------------------------------------
+PHONE_0_PHONEON:
+	MOV	A,@(1<<1)
+	LCALL	VGASTAMP1	;SPK icon on
+	REFURBISH_ICON
+	
+	HF_HOOK_H
+	HFLED_L		;On
+PHONE_0_START:	
+	LCALL	CLR_TIMER
+
+;---
+	MOV	A,@CTMR500MS
+	LCALL	SET_TIMER
+PHONE_0_DISP:
+	
+	XMUTE_H
+	MUTE_H
+	DAM_MIC_DISABLE
+
+	CALL	CLR_TELQUE
+	CLR	COUNT		;数字键按下计数清0
+
+	CLR	B1_SEC_REG	;计时
+	CLR	B1_MIN_REG
+	CLR	B1_HOUR_REG
+
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	PAGE	#($)
+	
+	;DAM_SPK_ENABLE
+	JMP	PHONE_1_TMR_DISP
+;-------------------------------------------------------------------------------
+;---------------------------------------
+PHONE_1_HOOKOFF:	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_TMR:
+PHONE_2_TMR:
+
+	JPB	B1_PRO_VAR,4,PHONE_1_TMR_1	;waiting for 5s
+	
+	MOV	A,B1_SEC_REG
+	ADD	A,@1
+	DAA
+	MOV	B1_SEC_REG,A
+	SUB	A,@0X60
+	JPNZ	PHONE_1_TMR_0
+	
+	CLR	B1_SEC_REG
+	
+	MOV	A,B1_MIN_REG
+	ADD	A,@1
+	DAA
+	MOV	B1_MIN_REG,A
+	SUB	A,@0X60
+	JPNZ	PHONE_1_TMR_0
+	
+	CLR	B1_MIN_REG
+PHONE_1_TMR_0:
+PHONE_1_TMR_DISP:
+PHONE_4_TMR_DISP:
+;---the third line
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	
+	SWAPA	B1_MIN_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,B1_MIN_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,@(CH_AMPERE)
+	CALL	VGACHAR
+	SWAPA	B1_SEC_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,B1_SEC_REG
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGACHAR
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_TMR_1:
+	INC	B1_SEC_REG
+	
+	MOV	A,B1_SEC_REG
+	SUB	A,@5
+	JPNZ	PHONE_FUNC_END
+	
+	BC	B1_PRO_VAR,4
+	CLR	B1_SEC_REG
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_MKEY:
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_SPK
+
+	MOV	A,@CKEY_FLS
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_FLS
+
+	MOV	A,@CKEY_RP
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_RP		;Pause/Repeat
+
+	MOV	A,@CKEY_MTE
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_MTE	;Mute
+
+	MOV	A,@CKEY_1M
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_M1
+	MOV	A,@CKEY_2M
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_M2
+	MOV	A,@CKEY_3M
+	LCALL	KEY_CHK
+	JPNC	PHONE_1_MKEY_M3
+
+	LCALL	DIALKEY_CHK
+	JPC	PHONE_1_MKEY_NUM	;Num 
+
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_MKEY_MTE:
+	MOV	A,B1_PRO_VAR
+	XOR	A,@(1<<3)
+	MOV	B1_PRO_VAR,A	;Mute-flag
+;---	
+	MOV	A,@48		;MUTE
+	JBS	B1_PRO_VAR,3
+	MOV	A,@43		;Blank
+	MOV	B1_MSG_N,A
+;---Icon Display
+	JPB	B1_PRO_VAR,3,PHONE_1__MICON_ON
+;PHONE_1__MICON_OFF:
+	MOV	A,@~(1<<7)		;MUTE icon off
+	LCALL	CLRVGASTAMP1
+	JMP	PHONE_1__MUTEICON
+PHONE_1__MICON_ON:
+	MOV	A,@(1<<7)		;MUTE icon on
+	LCALL	VGASTAMP1
+PHONE_1__MUTEICON:
+;---Char Display
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_RIGHT)
+	CALL	VGACHAR
+	MOV	A,B1_MSG_N
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_MKEY_M1:
+	MOV	A,@1
+	JMP	PHONE_1_MKEY_123M
+PHONE_1_MKEY_M2:
+	MOV	A,@2
+	JMP	PHONE_1_MKEY_123M
+PHONE_1_MKEY_M3:
+	MOV	A,@3
+	;JMP	PHONE_1_MKEY_123M
+
+PHONE_1_MKEY_123M:		
+	ADD	A,@GROUP_M
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	
+	MOV	A,TEMP0
+	JPZ	PHONE_FUNC_END	;No M1/M2/M3
+	MOV	B1_MSG_ID,A
+;---Read M1/M2/M3
+	LCALL	CLR_2TIMER
+
+	MOV	OFFSET_D,@M123_BUF_START
+PHONE_1_READ123M_LOOP:
+	MOV	A,B1_MSG_ID
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	PHONE_1_READ123M_LOOP
+	LCALL	DAT_READ_STOP
+;---
+	MOV	A,@CTMR100MS
+	LCALL	SET_2TIMER
+
+	MOV	A,@(M123_BUF_START+NUM_FGOFFSET)
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	COUNT,A
+	
+	MOV	A,@(M123_BUF_START+NUM_OFFSET)
+	MOV	OFFSET_S,A
+
+PHONE_1_LOAD123M_LOOP:
+	MOV	A,COUNT
+	JPZ	PHONE_FUNC_END
+	
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	LCALL	STOR_TELQUE
+	
+	DEC	COUNT
+	INC	OFFSET_S	;next address
+
+	JMP	PHONE_1_LOAD123M_LOOP
+;---------------------------------------
+PHONE_1_MKEY_FLS:
+	DAM_SPK_DISABLE
+	LCALL	CLR_2TIMER
+	
+	CALL	GET_TELQUE_LEN
+	MOV	COUNT,A
+;---stor the tel
+	JPNB	B1_PRO_VAR,5,PHONE_FLS_1
+	
+	MOV	COUNT,@24
+PHONE_FLS_1:
+	MOV	A,COUNT
+	JPZ	PHONE_DOFLASH
+;!!!!!!!!!!!!!!!!!!!
+	BLOCK	1
+
+	MOV	_RC,@NUM_FLAG
+	MOV	A,COUNT
+	MOV	_RD,A
+
+	MOV	_RC,@NAME_FLAG
+	CLR	_RD
+
+	MOV	A,@GROUP_DIAL
+	LCALL	SET_GROUP
+	
+	MOV	OFFSET_S,@DATA_ZONE_START		;start address
+	MOV	COUNT,@(DATA_ZONE_END-DATA_ZONE_START)	;length(58bytes)
+PHONE_FLS_STORTEL:
+	BLOCK	1
+
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	LCALL	DAT_WRITE
+	
+	INC	OFFSET_S
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	PHONE_FLS_STORTEL
+	
+PHONE_FLS_STORTEL_END:
+	LCALL	DAT_WRITE_STOP
+
+;!!!!!!!!!!!!!!!!!!!	
+;---
+PHONE_DOFLASH:
+	MOV	A,@CTMR100MS			;以100ms为单位
+	LCALL	SET_2TIMER
+	CLR	B1_PRO_VAR1
+	DP_PULSE_L
+	CALL	CLR_TELQUE
+	MOV	A,B1_PRO_VAR
+	AND	A,@0XF0
+	OR	A,@0X03
+	MOV	B1_PRO_VAR,A
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_MKEY_RP:
+	;JPB	B1_PRO_VAR,5,PHONE_PAUSE
+	;MOV	A,COUNT
+	;JPNZ	PHONE_PAUSE
+	CALL	GET_TELQUE_LEN
+	OR	A,@0
+	JPNZ	PHONE_PAUSE
+;---Redial读出数据
+	MOV	A,@GROUP_DIAL
+	LCALL	SET_GROUP
+	LCALL	GET_TELT
+	MOV	A,TEMP0
+	JPZ	PHONE_FUNC_END
+	MOV	B1_MSG_ID,A
+
+	MOV	OFFSET_D,@DATA_ZONE_START
+PHONE_2_READDIAL_LOOP:
+	MOV	A,B1_MSG_ID
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	PHONE_2_READDIAL_LOOP
+	LCALL	DAT_READ_STOP
+
+	MOV	A,@CTMR100MS
+	LCALL	SET_2TIMER
+	
+	JMP	PHONE_FUNC_END	
+;---------------------------------------	
+PHONE_PAUSE:	
+	MOV	A,@NUM_P
+;-------------------
+PHONE_1_MKEY_NUM:
+
+	CALL	STOR_TELQUE
+
+	CALL	GET_TELQUE_LEN		;the number of length(the pointer of number)
+	SUB	A,@23
+	JPC	PHONE_1_MKEY_NUM_1
+	
+	BS	B1_PRO_VAR,5		;the length flag(>24)
+PHONE_1_MKEY_NUM_1:	
+	MOV	A,@CTMR100MS
+	LCALL	SET_2TIMER
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_0_HOOKON:
+PHONE_1_HOOKON:
+	nop
+	JMP	PHONE_STATE
+PHONE_1_MKEY_SPK:
+	HF_HOOK_COM			;HF ON/OFF COM
+	REFURBISH_ICON
+	
+	
+PHONE_STATE:
+	JPB	_P8,4,PHONE_FUNC_1_HFWORK	;HF WORK ?
+;---
+	LCALL	INIT_DAM_FUNC
+	MOV	A,@~(1<<1)		;SPK icon off
+	LCALL	CLRVGASTAMP1
+	DAM_SPK_DISABLE
+	;HF_HOOK_L
+	HFLED_H		;Off
+	
+	JPNB	_P7,4,PHONE_FUNC_END	;HS WORK ?
+;---HF/HS all exit!!!!!!!!!!!!!!!!!!!!!!
+
+	DAM_SPK_DISABLE
+	LCALL	CLR_2TIMER
+	
+	MOV	A,@~(1<<7)		;Mute icon off
+	LCALL	CLRVGASTAMP1
+	
+	CALL	GET_TELQUE_LEN
+	MOV	COUNT,A
+;---stor the tel
+	JPNB	B1_PRO_VAR,5,PHONE_EXIT_1
+	
+	MOV	COUNT,@24
+PHONE_EXIT_1:
+	MOV	A,COUNT
+	JPZ	PHONE_EXIT_STORTEL_END
+;!!!!!!!!!!!!!!!!!!!
+
+	BLOCK	1
+
+	MOV	_RC,@NUM_FLAG
+	MOV	A,COUNT
+	MOV	_RD,A
+	MOV	_RC,@NAME_FLAG
+	CLR	_RD
+;-the talked time
+	MOV	_RC,@PHOUR_START
+	CLR	_RD
+
+	MOV	_RC,@PMIN_START
+	MOV	A,B1_MIN_REG
+	MOV	_RD,A
+
+	MOV	_RC,@PSEC_START
+	MOV	A,B1_SEC_REG
+	MOV	_RD,A
+
+	MOV	A,@GROUP_DIAL
+	LCALL	SET_GROUP
+	
+	MOV	OFFSET_S,@DATA_ZONE_START		;start address
+	MOV	COUNT,@(DATA_ZONE_END-DATA_ZONE_START)	;length(55bytes)
+PHONE_EXIT_STORTEL:
+	BLOCK	1
+
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	LCALL	DAT_WRITE
+	
+	INC	OFFSET_S
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	PHONE_EXIT_STORTEL
+	LCALL	DAT_WRITE_STOP
+
+PHONE_EXIT_STORTEL_END:
+;!!!The reason not exit phone state directly is that HOOK status alternate and produce a RING-OFF message(an low pulse) 
+
+	MOV	B1_PRO_VAR,@5		;Delay 125ms before exit to idle
+	MOV	A,@CTMR125MS
+	LCALL	SET_TIMER
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_FUNC_1_HFWORK:			;HF WORK
+	DAM_SPK_ENABLE
+	;HF_HOOK_H
+	HFLED_L				;On
+	MOV	A,@(1<<1)		;SPK icon on
+	LCALL	VGASTAMP1
+;!!!
+
+;!!!
+	JMP	PHONE_FUNC_END
+
+;-------------------------------------------------------------------------------
+PHONE_1:
+PHONE_2:		;dialing
+
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_1_MKEY
+
+	MOV 	A,@CMSG_TMR2
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_1_2TMR
+
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_1_TMR
+
+	MOV	A,@CHOOK_OFF
+	SUB	A,B1_MSG
+	JPZ	PHONE_1_HOOKOFF
+
+	MOV	A,@CHOOK_ON
+	SUB	A,B1_MSG
+	JPZ	PHONE_1_HOOKON
+
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_1_2TMR:			;(0-dialing/1-waiting)
+	MOV	A,@CTMR100MS
+	LCALL	SET_2TIMER
+
+	JPB	B1_PRO_VAR,6,PHONE_1_2TMR_DIAL
+	
+PHONE_1_2TMR_WAIT:
+	CALL	GET_TELQUE
+	JPNC	PHONE_1_2TMR_WAIT_1
+	MOV	B1_DTMF_VAL,A
+;---Disp Update	
+	BLOCK	0
+	MOV	OFFSET_S,@(LCD_2NDLINE+1)
+	MOV	OFFSET_D,@(LCD_2NDLINE)	
+	MOV	COUNT,@14
+	LCALL	MOVE_DATA
+	
+	MOV	_RC,@(LCD_2NDLINE+LENGTH2NDL-1)
+	MOV	_RD,B1_DTMF_VAL
+;---
+	REFURBISH_2NDL
+	BS	B1_PRO_VAR,6
+;---mute mic	
+	;CLRA
+	;CALL	SET_MIC_GAIN
+;---spk
+	;MOV	A,@1
+	;CALL	SET_SPKVOL		;0X5F20
+;---dial	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_P
+	JPZ	PHONE_1_2TMR_PAUSE
+
+	MOV	A,B1_DTMF_VAL
+	LCALL	DTMFO_TAB
+	PHONE_STARTDIAL
+
+	JMP	PHONE_FUNC_END
+;-----------------------------
+PHONE_1_2TMR_PAUSE:
+	CLR	B1_PRO_VAR1		;暂停计时清0
+	BS	B1_PRO_VAR,7
+	JMP	PHONE_FUNC_END	
+;-----------------------------
+PHONE_1_2TMR_WAIT_1:
+	;PHONE_STOPDIAL
+	;BC	B1_PRO_VAR,6
+	JMP	PHONE_FUNC_END
+
+;-----------------------------	
+PHONE_1_2TMR_DIAL:
+	JPNB	B1_PRO_VAR,7,PHONE_1_2TMR_DIALOVER	;正在拔的不是暂停吗?
+
+	INC	B1_PRO_VAR1
+
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@36		
+	JPNZ	PHONE_FUNC_END				;暂停时间到了吗(100ms*36)?
+
+	BC	B1_PRO_VAR,7			;Clear pause bit
+PHONE_1_2TMR_DIALOVER:
+	CALL	EMPTY_TELQUE
+	JPC	PHONE_1_2TMR_CHKKEY		;No data in dial queue
+;---有号码
+;---stop dial and wait for next dial-num
+	PHONE_STOPDIAL
+	BC	B1_PRO_VAR,6
+	JMP	PHONE_FUNC_END
+
+;-----------------------------
+PHONE_1_2TMR_CHKKEY:				;已拔号100ms,查队列后再查按键
+	LCALL	KEYPRESS_CHK
+	JPC	PHONE_1_2TMR_KEYPRESS
+;---key released	
+	PHONE_STOPDIAL	;???????????????????????????????????
+	BC	B1_PRO_VAR,6
+
+	JMP	PHONE_FUNC_END
+PHONE_1_2TMR_KEYPRESS:			;按键持续按下,继续发DTMF拔号音
+
+	JMP	PHONE_FUNC_END
+;-------------------------------------------------------------------------------
+PHONE_3:
+	MOV 	A,@CMSG_TMR2
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_3_2TMR
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_3_2TMR:
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_FLASH
+	LCALL	FLASH_TAB
+	SUB	A,B1_PRO_VAR1
+	JPNZ	PHONE_FUNC_END
+;---时间到
+	MOV	B1_PRO_VAR,@0X11
+	
+	LCALL	CLR_2TIMER
+	DP_PULSE_H
+	
+	JMP	PHONE_0_DISP	;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+;-------------------------------------------------------------------------------
+PHONE_4:
+	MOV	A,@CHOOK_OFF
+	SUB	A,B1_MSG
+	JPZ	PHONE_4_HOOKOFF
+	
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_4_MKEY
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	PHONE_4_TMR
+
+	JMP	PHONE_FUNC_END
+;-------------------------------------------------------------------------------
+PHONE_4_TMR:
+	INC	B1_PRO_VAR1
+	
+	JPB	B1_PRO_VAR,4,PHONE_4_TMRDIAL
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_4_TMRDIAL:
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR100MS
+	LCALL	SET_2TIMER
+	
+	MOV	B1_PRO_VAR,@0X12
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_4_MKEY:
+	CLR	B1_PRO_VAR1
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	PHONE_4_MKEY_DEL
+	MOV	A,@CKEY_RP
+	LCALL	KEY_CHK
+	JPNC	PHONE_4_MKEY_RP
+	
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	PHONE_4_MKEY_SPK
+
+	LCALL	DIALKEY_CHK
+	JPC	PHONE_4_MKEY_NUM	;Num 
+
+	MOV	A,@CMSG_MKEY
+	LCALL	STOR_MSG
+	CLR	B1_PRO_VAR
+	LCALL	CLR_PRO_STACK
+	
+	JMP	PHONE_FUNC_END
+;---------------------------------------
+PHONE_4_MKEY_DEL:
+;-length adjust	
+	MOV	A,B1_CID_T
+	JPZ	PHONE_EXIT_STORTEL_END	
+
+	CALL	PUT_TELQUE		;退出队列
+	DEC	B1_CID_T		;decrease the length
+	
+	MOV	A,B1_CID_T
+	JPZ	PHONE_EXIT_STORTEL_END
+
+	JMP	PHONE_4_NUMKEY_DISP
+;---------------------------------------
+PHONE_4_MKEY_RP:
+	MOV	A,@NUM_P
+;---------------------------------------
+PHONE_4_MKEY_NUM:
+	MOV	B1_MSG_N,A
+;-length adjust	
+	MOV	A,B1_CID_T
+	SUB	A,@32
+	JPZ	PHONE_FUNC_END	
+;-Save data
+	MOV	A,B1_MSG_N
+	CALL	STOR_TELQUE
+
+	INC	B1_CID_T
+	JMP	PHONE_4_NUMKEY_DISP
+;---------------------------------------
+PHONE_0_DIAL:
+	MOV	A,@4
+	MOV	B1_PRO_VAR,A
+	
+	BLOCK	1
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD		;!!!the stor data pointer
+	AND	A,@0X3F
+	MOV	_RD,A
+	MOV	_RC,@NAME_FLAG
+	CLR	_RD		;!!!Clean the get data pointer
+PHONE_4_MKEY_SPK:
+PHONE_4_HOOKOFF:
+	LCALL	CLR_TIMER
+	BS	B1_PRO_VAR,4	;for dial
+
+	REFURBISH_ICON
+	HF_HOOK_H
+	HFLED_L		;On
+;---
+	MOV	A,@CTMR1S
+	LCALL	SET_TIMER
+	
+	XMUTE_H
+	MUTE_H
+	DAM_MIC_DISABLE
+
+	CLR	B1_SEC_REG	;计时
+	CLR	B1_MIN_REG
+	CLR	B1_HOUR_REG
+
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	MOV	A,@(1<<1)
+	CALL	VGASTAMP1
+	PAGE	#($)
+
+	JMP	PHONE_4_TMR_DISP
+;-------------------------------------------------------------------------------
+PHONE_5:
+	MOV	A,@CMSG_TMR
+	SUB	A,B1_MSG
+	JPZ	PHONE_5_TMR
+
+if	0	
+	JMP	PHONE_FUNC_END
+else
+	MOV	A,B1_MSG
+	LCALL	STOR_MSG
+	JMP	PHONE_5_EXIT
+endif
+;---------------------------------------
+PHONE_5_TMR:
+	MOV	A,@CMSG_INIT
+	LCALL	STOR_MSG
+PHONE_5_EXIT:	
+	CLR	B1_PRO_VAR
+	LCALL	CLR_PRO_STACK
+	
+	JMP	PHONE_FUNC_END
+;-------------------------------------------------------------------------------
+;	Function : GET_TELQUE	
+;	从以NUM_START为起始地址以NUM_FLAG为指针的队列取数据(一个字节)
+;	INPUT : 
+;
+;	output: ACC = the data you got
+;		C = 1/0 - valid/not
+;!Note:用到缓冲特性:from 0 to 63,如果到顶,回转到32处
+;0 -> 1 -> 2 -> 3 -> .. -> 31 -> 32 -> .. -> 63
+;				  |___________|
+;-------------------------------------------------------------------------------
+GET_TELQUE:			;for redial
+	BLOCK	1
+
+	MOV	_RC,@NAME_FLAG
+	MOV	TEMP1,_RD
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD
+	SUB	A,TEMP1
+	JPZ	GET_TELQUE_END		;(pGet = pStor)No data
+	
+	MOV	_RC,@NAME_FLAG
+	MOV	A,_RD
+	ADD	A,@NUM_START
+	MOV	_RC,A
+	MOV	TEMP0,_RD		;Get data
+	
+	MOV	A,TEMP1
+	SUB	A,@63
+	JPZ	GET_TELQUE_ADJUST1
+
+	MOV	_RC,@NAME_FLAG
+	INC	_RD
+	JMP	GET_TELQUE_ADJUSTED
+GET_TELQUE_ADJUST1:
+	MOV	_RC,@NAME_FLAG
+	MOV	_RD,@32
+GET_TELQUE_ADJUSTED:
+;---Get data
+	MOV	A,TEMP0
+	SETC
+	
+	RET
+GET_TELQUE_END:
+	CLRC
+	
+	RET
+;-------------------------------------------------------------------------
+;	Function : STOR_TELQUE	
+;	将数据存在以PHO_ADDR为起始地址以OFFSET_D为offset的空间(一个字节)
+;	INPUT : ACCH = the data you will stor
+;		OFFSET_D = the offset you will stor data
+;		ADDR_D = the BASE you will stor data
+;	output: ACCH = ~0/0 data stor ok or not
+;-------------------------------------------------------------------------
+STOR_TELQUE:
+	MOV	TEMP0,A
+;---
+	BLOCK	1
+
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD
+	ADD	A,@NUM_START
+	MOV	_RC,A		;stor data
+	MOV	_RD,TEMP0
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD
+	SUB	A,@63
+	JPZ	STOR_TELQUE_ADJUST1
+;!!!
+	INC	_RD
+	JMP	STOR_TELQUE_END
+STOR_TELQUE_ADJUST1:
+	MOV	_RD,@32
+STOR_TELQUE_END:
+	
+	RET
+;-------------------------------------------------------------------------
+;	Function : PUT_TELQUE	
+;	退出队列(!!!从进入队列的地址退出,只是修改指针)
+;	input : 
+;	output: 
+;-------------------------------------------------------------------------
+PUT_TELQUE:
+
+	BLOCK	1
+
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD
+	MOV	A,@0X3F
+	JPZ	PUT_TELQUE_END
+
+	DEC	_RD
+PUT_TELQUE_END:
+	
+	RET
+;-------------------------------------------------------------------------
+;	Function : CLR_TELQUE
+;	input : no
+;	output: no
+;-------------------------------------------------------------------------
+CLR_TELQUE:
+	BLOCK	1
+	MOV	_RC,@NUM_FLAG
+	CLR	_RD
+	MOV	_RC,@NAME_FLAG
+	CLR	_RD
+
+	RET
+;-------------------------------------------------------------------------
+;	Function : GET_TELQUE_LEN
+;	Get the store pointer
+;	input : no
+;	output: no
+;-------------------------------------------------------------------------
+GET_TELQUE_LEN:
+	BLOCK	1
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD
+
+	RET
+;-------------------------------------------------------------------------------
+;	Function : EMPTY_TELQUE
+;	input : no
+;	output: Z = 0/~0 empty/not 
+;-------------------------------------------------------------------------------
+EMPTY_TELQUE:
+	BLOCK	1
+	MOV	_RC,@NUM_FLAG
+	MOV	TEMP1,_RD
+	MOV	_RC,@NAME_FLAG
+	MOV	A,_RD
+	SUB	A,TEMP1
+	JPZ	EMPTY_TELQUE_1
+	
+	CLRC
+	
+	RET
+EMPTY_TELQUE_1:
+	SETC
+	
+	RET
+;-------------------------------------------------------------------------------

@@ -1,0 +1,478 @@
+;-------------------------------------------------------------------------------
+;	B1_PRO_VAR	bit7 = 1/0 - Make Key msg received
+;-------------------------------------------------------------------------------	
+PRO_IDLE:	
+
+	MOV 	A,@CMSG_TMR2
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_TMR2
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_TMR
+	
+	MOV 	A,@CRING_ON
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_RING
+	
+	MOV 	A,@CRDY_CID
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_ROFF
+	
+	MOV 	A,@CRING_FAIL
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_RINGFAIL
+
+	MOV 	A,@CHOOK_OFF
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_HOOKOFF
+	MOV 	A,@CPHONE_ON
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_PHONEON
+
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_MKEY
+
+	MOV 	A,@CMSG_BKEY
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_BKEY
+
+	MOV 	A,@CMSG_CKEY
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_CKEY
+	
+	MOV 	A,@CVP_END
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_VPEND
+	
+	MOV 	A,@CMSG_INIT
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_INIT
+
+	MOV 	A,@CMSG_CID
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_NCID
+		
+	MOV 	A,@CCID_EDIT
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_EDITCID
+		
+	MOV 	A,@CDIAL_OUT
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_DIAL	;Dial out the data displayed at LCD
+
+	MOV 	A,@CPOWER_ON
+	SUB 	A,B1_MSG
+	JPZ 	PRO_IDLE_POWERON
+		
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_TMR:
+	;JMP 	MAIN_LOOP
+	INC	B1_PRO_VAR1
+	
+	MOV	A,@CTMR2S
+	LCALL	SET_TIMER
+
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	PAGE	#($)
+	
+	JPB	B1_PRO_VAR1,0,PRO_IDLE_TMR_3
+	JPB	DAM_FLAG,4,PRO_IDLE_TMRNEW	;New CID
+	JPB	DAM_FLAG,7,PRO_IDLE_TMRNEW	;New VP
+
+PRO_IDLE_TMR_3:
+;---All VP/CID
+	JMP	PRO_IDLE_INIT_1
+;---------------------------------------
+PRO_IDLE_TMRNEW:
+;---New VP/CID
+
+;---2nd line
+	PAGE	#(DISP_NEWVPCID)
+	CALL	DISP_NEWVPCID
+;---3rd line
+	PAGE	#(VGA)
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@42		;NEW
+	CALL	VGASTRING
+	MOV	A,@43		;4-BLANK
+	CALL	VGASTRING
+	MOV	A,@42		;NEW
+	CALL	VGASTRING
+
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_TMR2:			;LED BLINK(off) only
+	LCALL	CLR_2TIMER
+	
+	DAM_NEWLED_H		;LED off
+	
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_BKEY_DEL:
+PRO_IDLE_INIT:
+	RTC_DISP_ENABLE		;Enable RTC display
+;---initial DSP-RTC
+	BANK	0
+	PAGE	#(SET_DSPRTC)
+	CALL	SET_DSPRTC
+	;PAGE	#($)
+	BANK	1
+;---	
+	MOV	A,@CTMR500MS
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+;---
+	PAGE	#(VPMSG_CHK)
+	CALL	VPMSG_CHK
+	
+	MOV	A,@CGROUP_MISSCID
+	PAGE	#(DSP)
+	CALL	SET_GROUP
+	PAGE	#(GET_TELN)
+	CALL	GET_TELN	;Get the total/new TEL-message number
+;---
+	PAGE	#(VGA)
+	MOV	A,@~(1<<1)		;SPK icon off
+	CALL	CLRVGASTAMP1
+	CALL	VGADRAWSTAMP
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;---
+	;MOV	A,@((1<<5)|(1<<2))	;":","/"
+	;CALL	VGASTAMP1
+	;CALL	VGADRAWSTAMP
+PRO_IDLE_INIT_1:
+
+;---the 1st line
+	PAGE	#(VGA)
+	MOV	A,@ID_BLANK
+	CALL	DISP_ID
+;---the 2nd line
+	CALL	DISP_ALLVPCID
+;---the 3rd line
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@11		;MESSAGES
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@2		;CALLS
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_VPEND:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+;-All codec-path open
+	LCALL	DAA_OFF
+	
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_RING:
+	LCALL	INIT_DAM_FUNC
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_ROFF:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	
+	PAGE	#(MODE9_LON)
+	CALL	MODE9_LON
+	PAGE	#(DAA_OFF)
+	CALL	DAA_OFF
+	PAGE	#(LINE_START)
+	CALL	LINE_START
+	PAGE	#($)
+	
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_RINGFAIL:
+	PAGE	#(INIT_DAM_FUNC)
+	CALL	INIT_DAM_FUNC
+	LCALL	MODE9_LOFF
+	
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_MKEY:
+	BS	B1_PRO_VAR,7	;Set Make-key flag
+	
+	MOV	A,@CTMR2S
+	LCALL	SET_PTIMER
+	
+	MOV	A,@CKEY_PLY
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_PLY
+
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_STP
+;---	
+	MOV	A,@CKEY_PBK
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_BOOK
+	MOV	A,@CKEY_1M
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_1M
+	MOV	A,@CKEY_2M
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_2M
+	MOV	A,@CKEY_3M
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_3M
+;---		
+	MOV	A,@CKEY_MNU
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_MNU
+	MOV	A,@CKEY_UP
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_UP
+	MOV	A,@CKEY_DWN
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_DWN
+	
+;---		
+	MOV	A,@CKEY_MTE
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_MTE
+
+	MOV	A,@CKEY_RP
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_RP	;Pause/repeat - Dialled num
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_MKEY_SPK
+;---		
+	LCALL	DIALKEY_CHK
+	JPC	PRO_IDLE_MKEY_NUM	;Num 
+
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_BKEY:
+	JPNB	B1_PRO_VAR,7,MAIN_LOOP
+	BC	B1_PRO_VAR,7
+	
+	MOV	A,@CKEY_OGM
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_BKEY_OGM	;Play OGM
+	
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_BKEY_STP	;Select OGM
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_BKEY_DEL	;Select OGM
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_BKEY_STP:	;OGM Select
+	JPB	DAM_FLAG,2,MAIN_LOOP	;If Answer Off,you can't select OGM
+	
+	MOV	A,@CSEL_OGM
+	LCALL	STOR_MSG
+
+	JMP 	PRO_IDLE_MNU
+;---------------------------------------
+PRO_IDLE_CKEY_STP:	;OGM Select
+	MOV	A,@CSEL_ONOFF
+	LCALL	STOR_MSG
+	
+	JMP 	PRO_IDLE_MNU
+;---------------------------------------
+PRO_IDLE_CKEY:
+	LCALL	CLR_PTIMER
+	JPNB	B1_PRO_VAR,7,MAIN_LOOP
+	BC	B1_PRO_VAR,7
+
+	MOV	A,@CKEY_OGM
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_CKEY_OGM	;Record OGM
+	MOV	A,@CKEY_MMO
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_CKEY_MMO	;Record MEMO
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_CKEY_STP	;Record OGM
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	PRO_IDLE_CKEY_DEL	;Delete all OLD message
+	
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_BKEY_OGM:		;play OGM
+	MOV	A,@CPLY_OGM
+	LCALL	STOR_MSG
+
+	JMP 	PRO_IDLE_OGM
+;---------------------------------------
+PRO_IDLE_CKEY_OGM:		;Record OGM
+	MOV	A,@CREC_OGM
+	LCALL	STOR_MSG
+	
+	;JMP 	PRO_IDLE_OGM
+PRO_IDLE_OGM:
+	MOV	A,@CGOTO_OGM
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_CKEY_MMO:
+	MOV	A,@CREC_MMO
+	LCALL	STOR_MSG
+
+	JMP 	PRO_IDLE_OGM
+;---------------------------------------
+PRO_IDLE_CKEY_DEL:
+	
+	MOV	A,@CDEL_ALL
+	LCALL	STOR_MSG
+	
+	JMP 	PRO_IDLE_OGM	
+;---------------------------------------
+PRO_IDLE_MKEY_PLY:
+	MOV	A,@CPLY_MSG
+	LCALL	STOR_MSG
+	
+	MOV	A,@CGOTO_PLAY
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+;-------------------------------------------------
+PRO_IDLE_MKEY_STP:
+	
+	JMP 	MAIN_LOOP
+;-------------------------------------------------
+PRO_IDLE_MKEY_BOOK:
+	
+	MOV	A,@CMSG_BOOK
+	LCALL	STOR_MSG
+PRO_IDLE_GOTOBOOK:
+		
+	MOV	A,@CGOTO_BOOK
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+;-------------------------------------------------
+PRO_IDLE_MKEY_1M:
+	MOV	B1_MSG_N,@1
+	JMP 	PRO_IDLE_MKEY_M_LOOKUP
+PRO_IDLE_MKEY_2M:
+	MOV	B1_MSG_N,@2
+	JMP 	PRO_IDLE_MKEY_M_LOOKUP
+PRO_IDLE_MKEY_3M:
+	MOV	B1_MSG_N,@3
+	;JMP 	PRO_IDLE_MKEY_M_LOOKUP
+PRO_IDLE_MKEY_M_LOOKUP:
+	MOV	A,@CLOOK_NUM
+	LCALL	STOR_MSG
+
+	MOV	A,@CGOTO_STOR
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+	
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_POWERON:
+	MOV	A,B1_MSG
+	LCALL	STOR_MSG
+	JMP	PRO_IDLE_MNU
+PRO_IDLE_MKEY_MNU:
+	MOV	A,@CMSG_MENU
+	LCALL	STOR_MSG
+PRO_IDLE_MNU:	
+	MOV	A,@CGOTO_MENU
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+;---------------------------------------	
+PRO_IDLE_NCID:			;New-CID exist and cooked
+	MOV	A,B1_MSG
+	LCALL	STOR_MSG
+	JMP	PRO_IDLE_GOTOCID
+;---------------------------------------
+PRO_IDLE_EDITCID:
+	MOV	A,B1_MSG
+	LCALL	STOR_MSG
+	JMP	PRO_IDLE_GOTOBOOK
+;---------------------------------------
+PRO_IDLE_MKEY_UP:
+PRO_IDLE_MKEY_DWN:
+	
+	MOV	A,@CLOOK_CID
+	LCALL	STOR_MSG
+PRO_IDLE_GOTOCID:	
+	MOV	A,@CGOTO_CID
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+
+;---------------------------------------
+PRO_IDLE_MKEY_MTE:
+	MOV	A,@CSTOR_NUM
+	LCALL	STOR_MSG
+PRO_IDLE_LOOKNUM:
+	MOV	A,@CGOTO_STOR
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_MKEY_FLS:
+	NOP
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_MKEY_RP:
+	MOV	A,@CLOOK_DIAL			;Lookup dialled num
+	LCALL	STOR_MSG
+	
+	JMP 	PRO_IDLE_GOTOCID
+;---------------------------------------
+PRO_IDLE_DIAL:
+	MOV	A,B1_MSG
+	LCALL	STOR_MSG
+	JMP	PRO_IDLE_PHONE
+;-------------------
+PRO_IDLE_MKEY_SPK:
+PRO_IDLE_PHONEON:
+	MOV	A,@CPHONE_ON
+	LCALL	STOR_MSG
+PRO_IDLE_PHONE:	
+	MOV	A,@CGOTO_PHONE
+	LCALL	PUSH_PRO
+	CLR	B1_PRO_VAR
+
+	JMP 	MAIN_LOOP
+;---------------------------------------
+PRO_IDLE_HOOKOFF:
+	MOV	A,@CHOOK_OFF
+	LCALL	STOR_MSG
+	JMP 	PRO_IDLE_PHONE
+;---------------------------------------
+PRO_IDLE_MKEY_NUM:
+	MOV	B1_MSG_N,A	;the key value
+	
+	MOV	A,@CKEY_NUM
+	LCALL	STOR_MSG
+	
+	JMP 	PRO_IDLE_PHONE
+;-------------------------------------------------------------------------------

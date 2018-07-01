@@ -1,0 +1,920 @@
+
+ORG	(12<<10)
+;-------------------------------------------------------------------------------
+VGA:
+;-------------------------------------------------------------------------------
+VGASTAMP1:
+	MOV	TEMP0,A
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP)
+	JMP	VGASTAMP
+VGASTAMP2:
+	MOV	TEMP0,A
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP+1)
+
+VGASTAMP:
+	BLOCK	0
+	MOV	A,TEMP0
+	OR	_RD,A
+	RET
+;-------------------------------------------------------------------------------
+/*
+GET_VGASTAMP1:
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP)
+	JMP	GET_VGASTAMP
+GET_VGASTAMP2:
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP+1)
+	;JMP	GET_VGASTAMP
+GET_VGASTAMP:
+	BLOCK	0
+	MOV	A,_RD
+	RET
+*/
+;-------------------------------------------------------------------------------
+CLRVGASTAMP1:
+	MOV	TEMP0,A
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP)
+	JMP	CLRVGASTAMP
+CLRVGASTAMP2:
+	MOV	TEMP0,A
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP+1)
+
+CLRVGASTAMP:
+	BLOCK	0
+
+	MOV	A,TEMP0
+	AND	_RD,A	
+	
+	RET
+
+
+;-------------------------------------------------------------------------------
+;	input : acc = value
+;	output:	
+;-------------------------------------------------------------------------------
+VGANUM1:
+	MOV	TEMP0,A
+	MOV	TEMP1,@(LENGTH1STL)
+
+	MOV	A,@(LCD_1CBUF_CTRL)
+	MOV	TEMP2,A
+	MOV	_RC,A
+	
+	JMP	VGALCD
+;-------------------------------------------------------------------------------
+;	input : acc = value
+;	output:	
+;-------------------------------------------------------------------------------
+VGANUM2:
+	MOV	TEMP0,A
+	MOV	TEMP1,@(LENGTH2NDL)
+	
+	MOV	A,@(LCD_2CBUF_CTRL)
+	MOV	TEMP2,A
+	MOV	_RC,A
+	
+	JMP	VGALCD
+;-------------------------------------------------------------------------------
+;	input : acc = value
+;	output:	
+;-------------------------------------------------------------------------------
+VGACHAR:
+	MOV	TEMP0,A
+	MOV	TEMP1,@(LENGTH3RDL)
+	
+	MOV	A,@(LCD_3CBUF_CTRL)	
+	MOV	TEMP2,A
+	MOV	_RC,A
+
+	JMP	VGALCD
+;---------------------------------------
+VGALCD:					;至此TEMP0是待保存的值,_RC对应控制标志地址索引
+
+	BLOCK	0
+	MOV	A,TEMP0
+	XOR	A,@CH_END		;送到的值是结束符吗?(Note CH_END=NUM_END)
+	JPZ	VGALCD_END
+	JPNB	_RD,7,VGALCD_BEGIN	;查控制标志
+	JPB	_RD,5,VGALCD_TOBCD	;查BCD转换标志(this digital must use 2)
+VGALCD_STOR:
+	ADD	_RC,@2			;此时_RC是指针的指针
+	SUBA	_RD,TEMP1		;查指针超过最大长度了吗?(11>10/16>15/16>15)
+	JPC	VGALCD_FULL
+
+	INC	_RD			;指针值加1
+	ADD	_RC,_RD		;!!!在指针索引的基础上加入索引值
+	MOV	_RD,TEMP0
+	RET
+;-----------------------------	
+VGALCD_FULL:
+	CLR	_RD			;指针清空;(注意指针不能为0,因为基址是指针的地址)
+	
+	MOV	_RC,TEMP2
+	BS	_RD,6			;set loopback flag
+	
+	
+	JMP	VGALCD_STOR
+	
+;---------------------------------------
+VGALCD_BEGIN:				;No start-flag,then clear all data except flag
+	MOV	_RD,TEMP0		;stor flag
+	
+	INC	_RC			;start address
+	ADD	TEMP1,@2		;length(head-point,tail-point,data-zone)
+	CLR	TEMP0			;value
+	LCALL	STORCIDRAM
+	
+	RET
+;---------------------------------------
+VGALCD_TOBCD:
+;!!!!!!!!!!!!!!!
+	MOV	TEMP3,TEMP1
+	MOV	TEMP4,TEMP2
+
+	MOV	A,TEMP0
+	LCALL	HEX_DGT		;this subroutine use TEMP1/TEMP2
+	MOV	TEMP0,A
+
+	MOV	TEMP1,TEMP3
+	MOV	TEMP2,TEMP4
+;!!!!!!!!!!!!!!!
+	ADD	_RC,@2			;此时_RC是指针的指针
+	SUBA	_RD,TEMP1		;查指针超过最大长度了吗?(11>10/16>15/16>15)
+	JPC	VGALCD_TOBCD_END
+
+	INC	_RD			;指针值加1
+	ADD	_RC,_RD		;!!!在指针索引的基础上加入索引值
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	ADD	A,@0X10
+	MOV	_RD,A
+;---
+	MOV	_RC,TEMP2	;
+	ADD	_RC,@2
+	SUBA	_RD,TEMP1		;查指针超过最大长度了吗?(11>10/16>15/16>15)
+	JPC	VGALCD_TOBCD_END
+
+	INC	_RD			;指针值加1
+	ADD	_RC,_RD		;!!!在指针索引的基础上加入索引值
+	MOV	A,TEMP0
+	AND	A,@0X0F
+	ADD	A,@0X10
+	MOV	_RD,A
+VGALCD_TOBCD_END:
+	RET
+;---------------------------------------	
+
+VGALCD_END:
+	BC	_RD,7			;clr the start flag
+
+	RET
+;-------------------------------------------------------------------------------
+;	Input : acc the TEL index-0
+;	Output: acc 
+;-------------------------------------------------------------------------------
+SET_CIDFLAG:
+	MOV	TEMP0,A
+	CLR	TEMP1
+	
+	JPNB	TEMP0,7,SET_CIDFLAG_1
+
+	BS	TEMP1,2		;Set new flag
+SET_CIDFLAG_1:
+	MOV	A,TEMP0
+	AND	A,@0X7F
+	JPZ	SET_CIDFLAG_2
+	SUB	A,@0X7F
+	JPZ	SET_CIDFLAG_2
+
+	BS	TEMP1,0		;Set MSG flag	
+SET_CIDFLAG_2:	
+
+	MOV	A,TEMP1
+	RET
+;-------------------------------------------------------------------------------
+;	Input : acc the TEL index-0
+;	Output: acc 
+;-------------------------------------------------------------------------------
+SEL_MSGDISP:
+	MOV	TEMP0,A
+	
+	MOV	A,@10	;The id of memo
+	MOV	TEMP1,A
+	
+	MOV	A,TEMP0
+	JPZ	SEL_MSGDISP_1
+	
+	MOV	A,@25	;The id of message
+	MOV	TEMP1,A
+	
+SEL_MSGDISP_1:	
+	MOV	A,TEMP1
+	
+	RET
+;-------------------------------------------------------------------------------
+;	input : 
+;	output:	
+;-------------------------------------------------------------------------------
+VGADRAWSTAMP:
+	REFURBISH_ICON
+
+	RET
+;-------------------------------------------------------------------------------
+;	input : TEMP0
+;	output:	
+;	清除第一行的图标
+;-------------------------------------------------------------------------------
+VGADRAWNUM1:
+	
+	REFURBISH_1STL
+	
+	MOV	A,@1
+	JMP	VGADRAW
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------
+VGADRAWNUM2:
+	REFURBISH_2NDL
+	MOV	A,@2
+	JMP	VGADRAW
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------
+VGADRAWCHAR:
+	REFURBISH_3RDL
+	MOV	A,@3
+	JMP	VGADRAW
+;---------------------------------------
+VGADRAW:
+	AND	A,@3
+	TBL
+	JMP	VGADRAW_STAMP
+	JMP	VGADRAW_NUM1
+	JMP	VGADRAW_NUM2
+	JMP	VGADRAW_CHAR
+VGADRAW_STAMP:
+	RET
+VGADRAW_NUM1:
+	MOV	OFFSET_S,@(LCD_1CBUF_ADDR)	;sources address(start)
+	MOV	OFFSET_D,@(LCD_1STLINE)		;destination address(start)
+	MOV	TEMP3,@(LENGTH1STL)		;length(counter)
+	MOV	_RC,@(LCD_1CBUF_CTRL)		;control flag
+	JMP	VGADRAW_ASCII
+
+VGADRAW_NUM2:
+	MOV	OFFSET_S,@(LCD_2CBUF_ADDR)		;
+	MOV	OFFSET_D,@(LCD_2NDLINE)
+	MOV	TEMP3,@(LENGTH2NDL)
+	MOV	_RC,@(LCD_2CBUF_CTRL)
+	JMP	VGADRAW_ASCII
+
+VGADRAW_CHAR:
+	MOV	OFFSET_S,@(LCD_3CBUF_ADDR)		;
+	MOV	OFFSET_D,@(LCD_3RDLINE)
+	MOV	TEMP3,@(LENGTH3RDL)
+	MOV	_RC,@(LCD_3CBUF_CTRL)
+	JMP	VGADRAW_ASCII
+
+;---至此,各暂存器用途OFFSET_S/OFFSET_D/COUNT(长度)/TEMP3=MAX-counter(最大长度)/TEMP4=flag
+VGADRAW_ASCII:
+	MOV	TEMP4,_RD		;the flag
+
+	ADD	_RC,@2
+	MOV	A,_RD			;取得字符长度
+	JPZ	VGADRAW_RET
+	MOV	COUNT,A
+
+	JPB	_RD,6,VGADRAW_LPBACK
+
+	SUBA	COUNT,TEMP3
+	JPZ	VGADRAW_MOVE		;本行满屏
+
+	ANDA	TEMP4,@(0X03)
+	TBL
+	JMP	VGADRAW_RET		;无
+	JMP	VGADRAW_ASCII_LEFT
+	JMP	VGADRAW_ASCII_RIGHT
+	JMP	VGADRAW_ASCII_CENTER
+
+VGADRAW_ASCII_LEFT:			;实际长度和最大长度中,取较小者
+	;SUBA	COUNT,TEMP3
+	;JPNC	VGADRAW_MOVE
+	;MOV	COUNT,TEMP3
+VGADRAW_MOVE:
+	LCALL	MOVE_DATA
+	
+VGADRAW_RET:
+	RET
+;---------------------------------------
+VGADRAW_ASCII_RIGHT:
+	SUBA	COUNT,TEMP3
+	;JPNC	VGADRAW_ASCII_RIGHT_1
+	;ADD	OFFSET_S,A		;左边留出
+	;MOV	COUNT,TEMP3
+	;JMP	VGADRAW_MOVE
+VGADRAW_ASCII_RIGHT_1:			;在规定的最大长度范围内,要在左边留出空间
+	XOR	A,@(0XFF)
+	ADD	A,@(1)
+	ADD	OFFSET_D,A		;加上差值的相反数,得到目的地址的起始地址(即对10/15/15取补数)
+	JMP	VGADRAW_MOVE
+;---------------------------------------
+VGADRAW_ASCII_CENTER:
+	SUBA	COUNT,TEMP3
+	;JPC	VGADRAW_ASCII_RIGHT
+;VGADRAW_ASCII_CENTER_1:		;在规定的最大长度范围内,要在左右两边留出空间
+	XOR	A,@(0XFF)
+	ADD	A,@(1)
+	MOV	TEMP4,A			;得到差值的相反数
+	RRCA	TEMP4
+	ADD	OFFSET_D,A		;加上差值的相反数的一半,得到目的地址的起始地址
+	JMP	VGADRAW_MOVE
+;-----------------------------
+
+;-------------------------------------------------------------------------------
+;---至此,各暂存器仅COUNT(长度)/OFFSET_D有用
+VGADRAW_LPBACK:
+	MOV	A,COUNT
+	MOV	TEMP4,A		;临时保存	
+	MOV	OFFSET_S,A
+	
+	SUBA	COUNT,TEMP3
+	XOR	A,@(0XFF)
+	ADD	A,@(1)
+	MOV	COUNT,A		;将COUNT对10取补(1-9/2-8/3-7/4-6/5-5)
+	
+	LCALL	MOVE_DATA
+;---Note: the OFFSET_D set in the last subroutine(LCALL MOVE_DATA)
+	MOV	COUNT,TEMP4
+	CLR	OFFSET_S
+	
+	LCALL	MOVE_DATA
+
+	RET
+;-------------------------------------------------------------------------------
+;	input : 
+;	output:	
+;	清除第一行的图标(清空缓冲区,再执行刷新)
+;-------------------------------------------------------------------------------
+VGABLANKSTAMP:
+
+	REFURBISH_ICON			;block	0
+	
+	MOV	A,@0
+	MOV	TEMP0,A
+	JMP	VGABLANK
+;-------------------------------------------------------------------------------
+;	input : 
+;	output:	
+;	清除第一行的数字显示(清空缓冲区,再执行刷新)
+;-------------------------------------------------------------------------------
+VGABLANKNUM1:
+	
+	REFURBISH_1STL			;block	0
+	
+	MOV	TEMP0,@NUM_BLANK
+	MOV	A,@1	
+	JMP	VGABLANK
+;-------------------------------------------------------------------------------
+;	input : 
+;	output:	
+;	清除第二行的数字显示(清空缓冲区,再执行刷新)
+;-------------------------------------------------------------------------------
+VGABLANKNUM2:
+	
+	REFURBISH_2NDL			;block	0
+	
+	MOV	TEMP0,@NUM_BLANK
+	MOV	A,@2
+	JMP	VGABLANK
+;-------------------------------------------------------------------------------
+;	input : 
+;	output:	
+;
+;	清除第三行的数字/字符显示(清空缓冲区,再执行刷新)
+;-------------------------------------------------------------------------------
+VGABLANKCHAR:
+	
+	REFURBISH_3RDL			;block	0
+		
+	MOV	TEMP0,@CH_BLANK
+	MOV	A,@3
+	JMP	VGABLANK
+;---------------------------------------
+VGABLANK:
+	AND	A,@0X03
+	MTBL
+	JMP	VGABLANK_STAMP
+	JMP	VGABLANK_NUM1
+	JMP	VGABLANK_NUM2
+	JMP	VGABLANK_CHAR
+	ENDT
+VGABLANK_STAMP:
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP)	;start address
+	MOV	TEMP1,@(2)			;length
+	JMP	VGABLANK_RET
+VGABLANK_NUM1:
+	MOV	_RC,@(LCD_CTRL+OFFSET1STL)	;start address
+	MOV	TEMP1,@(LENGTH1STL)		;length
+	JMP	VGABLANK_RET
+VGABLANK_NUM2:
+	MOV	_RC,@(LCD_CTRL+OFFSET2NDL)	;start address
+	MOV	TEMP1,@(LENGTH2NDL)		;length
+	JMP	VGABLANK_RET
+VGABLANK_CHAR:
+	MOV	_RC,@(LCD_CTRL+OFFSET3RDL)	;start address
+	MOV	TEMP1,@(LENGTH2NDL)		;length
+VGABLANK_RET:
+	
+	LCALL	STORCIDRAM
+	RET
+
+;-------------------------------------------------------------------------------
+;	字符串输入
+;	input:	acch -- string ID
+;	output:	none
+;	note:
+; 		字符串输入，只限于第三行
+;-------------------------------------------------------------------------------
+VGASTR	MACRO	#STR_ADDR
+	MOV	A,_RD
+	LCALL	STR_ADDR
+	JMP	VGASTRING_LOOP1
+	ENDM
+;---------------------------------------
+VGASTRING:
+	MOV	TEMP0,A
+	BLOCK	0
+	MOV	_RC,@(0x7a)
+	MOV	_RD,TEMP0	;Save the id first
+	MOV	_RC,@(0x7b)
+	CLR	_RD		;then clean the counter
+VGASTRING_LOOP:
+	MOV	_RC,@(0x7a)
+	MOV	TEMP0,_RD
+	INC	_RC
+	MOV	A,TEMP0
+	MTBL
+	JMP	VgaString_000
+	JMP	VgaString_001
+	JMP	VgaString_002
+	JMP	VgaString_003
+	JMP	VgaString_004
+	JMP	VgaString_005
+	JMP	VgaString_006
+	JMP	VgaString_007
+	JMP	VgaString_008
+	JMP	VgaString_009
+	JMP	VgaString_010
+	JMP	VgaString_011
+	JMP	VgaString_012
+	JMP	VgaString_013
+	JMP	VgaString_014
+	JMP	VgaString_015
+	JMP	VgaString_016
+	JMP	VgaString_017
+	JMP	VgaString_018
+	JMP	VgaString_019
+	JMP	VgaString_020
+	JMP	VgaString_021
+	JMP	VgaString_022
+	JMP	VgaString_023
+	JMP	VgaString_024
+	JMP	VgaString_025
+	JMP	VgaString_026
+	JMP	VgaString_027
+	JMP	VgaString_028
+	JMP	VgaString_029
+	JMP	VgaString_030
+	JMP	VgaString_031
+	JMP	VgaString_032
+	JMP	VgaString_033
+	JMP	VgaString_034
+	JMP	VgaString_035
+	JMP	VgaString_036
+	JMP	VgaString_037
+	JMP	VgaString_038
+	JMP	VgaString_039
+	JMP	VgaString_040
+	JMP	VgaString_041
+	JMP	VgaString_042
+	JMP	VgaString_043
+	JMP	VgaString_044
+	JMP	VgaString_045
+	JMP	VgaString_046
+	JMP	VgaString_047
+	JMP	VgaString_048
+	JMP	VgaString_049
+	JMP	VgaString_050
+	JMP	VgaString_051
+	JMP	VgaString_052
+	JMP	VgaString_053
+	JMP	VgaString_054
+	JMP	VgaString_055
+	JMP	VgaString_056
+	JMP	VgaString_057
+	JMP	VgaString_058
+	JMP	VgaString_059
+	JMP	VgaString_060
+	ENDT
+VgaString_000:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_001:
+	VGASTR	#(TABSTR_ANSWER)
+VgaString_002:
+	VGASTR	#(TABSTR_CALLS)
+VgaString_003:
+	VGASTR	#(TABSTR_CONTRAST)
+VgaString_004:
+	VGASTR	#(TABSTR_DELETE)
+VgaString_005:
+	VGASTR	#(TABSTR_EXIT)
+VgaString_006:
+	VGASTR	#(TABSTR_FLASH)
+VgaString_007:
+	VGASTR	#(TABSTR_LANGUAGE)
+VgaString_008:
+	VGASTR	#(TABSTR_LENGTH)
+VgaString_009:
+	VGASTR	#(TABSTR_LCD)
+VgaString_010:
+	VGASTR	#(TABSTR_MEMO)
+VgaString_011:
+	VGASTR	#(TABSTR_MESSAGES)
+VgaString_012:
+	VGASTR	#(TABSTR_NO)
+VgaString_013:
+	VGASTR	#(TABSTR_OGM)
+VgaString_014:
+	VGASTR	#(TABSTR_OPTIONS)
+VgaString_015:
+	VGASTR	#(TABSTR_PLAY)
+VgaString_016:
+	VGASTR	#(TABSTR_RECORDING)
+VgaString_017:
+	VGASTR	#(TABSTR_REMOTE)
+VgaString_018:
+	VGASTR	#(TABSTR_RINGS)
+VgaString_019:
+	VGASTR	#(TABSTR_SET)
+VgaString_020:
+	VGASTR	#(TABSTR_TIME)
+VgaString_021:
+	VGASTR	#(TABSTR_TO)
+VgaString_022:
+	VGASTR	#(TABSTR_WITHHELD)
+VgaString_023:
+	VGASTR	#(TABSTR_MENU)
+VgaString_024:
+	VGASTR	#(TABSTR_DATE)
+VgaString_025:
+	VGASTR	#(TABSTR_MESSAGE)
+VgaString_026:
+	VGASTR	#(TABSTR_TAM_HD)
+VgaString_027:
+	VGASTR	#(TABSTR_DEUTSCH)
+VgaString_028:
+	VGASTR	#(TABSTR_ENGLISH)
+VgaString_029:
+	VGASTR	#(TABSTR_FRANCAIS)
+VgaString_030:
+	VGASTR	#(TABSTR_YEAR)
+VgaString_031:
+	VGASTR	#(TABSTR_ON)
+VgaString_032:
+	VGASTR	#(TABSTR_OFF)
+VgaString_033:
+	VGASTR	#(TABSTR_7BLANK)	;半屏空格
+VgaString_034:
+	VGASTR	#(TABSTR_SEARCH)
+VgaString_035:
+	VGASTR	#(TABSTR_ADD)
+VgaString_036:
+	VGASTR	#(TABSTR_EMPTY)
+VgaString_037:
+	VGASTR	#(TABSTR_END)
+VgaString_038:
+	VGASTR	#(TABSTR_OF)
+VgaString_039:
+	VGASTR	#(TABSTR_LIST)
+VgaString_040:
+	VGASTR	#(TABSTR_STORE)
+VgaString_041:
+	VGASTR	#(TABSTR_NUMBER)
+VgaString_042:
+	VGASTR	#(TABSTR_NEW)
+VgaString_043:
+	VGASTR	#(TABSTR_4BLANK)
+VgaString_044:
+	VGASTR	#(TABSTR_ICM)
+VgaString_045:
+	VGASTR	#(TABSTR_TOLL_SAVE)
+VgaString_046:
+	VGASTR	#(TABSTR_3DOT)
+VgaString_047:
+	VGASTR	#(TABSTR_DELETE3DOT)
+VgaString_048:
+	VGASTR	#(TABSTR_MUTE)
+VgaString_049:
+	VGASTR	#(TABSTR_ALL)
+VgaString_050:
+	VGASTR	#(TABSTR_DEL)
+VgaString_051:
+	VGASTR	#(TABSTR_CALL)
+VgaString_052:
+	VGASTR	#(TABSTR_INITIALIZATION)
+VgaString_053:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_054:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_055:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_056:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_057:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_058:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_059:
+	VGASTR	#(TABSTR_ACCESS)
+VgaString_060:
+	VGASTR	#(TABSTR_ACCESS)
+
+VGASTRING_LOOP1:
+	MOV	TEMP0,A
+	INC	_RD		;counter +1
+	MOV	A,TEMP0
+	XOR	A,@CH_END
+	JPZ	VGASTRING_RET
+	MOV	A,TEMP0
+	CALL	VGACHAR
+	JMP	VGASTRING_LOOP
+VGASTRING_RET:
+
+	RET
+;###############################################################################
+;	DISP_DATETIME
+;
+;	input : B1_MON_REG/B1_DAY_REG/B1_HOUR_REG/B1_MIN_rEG
+;	output: 
+;
+;###############################################################################
+DISP_DATETIME:
+
+	MOV	A,@(STYLE_LEFT+STYLE_TOBCD)	;!!!
+	CALL	VGANUM1
+
+	MOV	A,B1_HOUR_REG
+	CALL	VGANUM1
+	MOV	A,B1_MIN_REG
+	CALL	VGANUM1
+	MOV	A,B1_DAY_REG
+	CALL	VGANUM1
+	MOV	A,B1_MON_REG
+	CALL	VGANUM1
+	MOV	A,@CH_END
+	CALL	VGANUM1
+	CALL	VGADRAWNUM1
+
+	RET
+;###############################################################################
+;	DISP_TELNUM
+;
+;	input : 
+;	output: 
+;
+;	the subroutine demand that the tel-message at specificed start address
+;and display only front 14(>15)/15(=15)byte or all number(<15)
+;
+;
+;###############################################################################
+DISP_TELNUM:	
+	BLOCK	1
+	
+	MOV	BASE_ADDR,@0X10		;base
+	MOV	OFFSET_S,@NUM_START	;source
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	MOV	COUNT,A
+;---Adjust offset_d	
+	SUB	A,@LENGTH2NDL
+	JPNC	DISP_TELNUM_1
+	
+	ADD	OFFSET_D,A	;asign left
+DISP_TELNUM_1:
+;---Adjust COUNT
+	MOV	A,COUNT
+	SUB	A,@LENGTH2NDL
+	JPC	DISP_TELNUM_2		;check length
+	
+	MOV	COUNT,@14
+DISP_TELNUM_2:
+	LCALL	COPY_DATA
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	SUB	A,@LENGTH2NDL
+	JPC	DISP_TELNUM_END
+;---more than 15,display it in two time,the first end with "-",the second start with "-"	
+	BLOCK	0
+	MOV	_RC,@(LCD_2NDLINE+LENGTH2NDL-1)
+	MOV	_RD,@NUM_AMPERE
+	
+DISP_TELNUM_END:
+
+	RET
+;###############################################################################
+;	DISP_TELNAME
+;
+;	input : 
+;	output: 
+;
+;	the subroutine demand that the tel-message at specificed start address
+;
+;	the name length is no more than 15
+;
+;###############################################################################
+DISP_TELNAME:	
+	BLOCK	1	
+	MOV	_RC,@NAME_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X0F			;Can't bigger than 15
+	MOV	COUNT,A
+	
+	MOV	OFFSET_S,@NAME_START		;
+	MOV	OFFSET_D,@LCD_3RDLINE
+	LCALL	COPY_DATA
+DISP_TELNAME_END:	
+
+	RET
+;###############################################################################
+;	DISP_TAILNUM
+;
+;	input : 
+;	output: 
+;
+;	the subroutine demand that the tel-message at specificed start address
+;and display only tail number
+;
+;
+;###############################################################################
+DISP_TAILNUM:	
+	
+	BLOCK	1
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F	
+	SUB	A,@LENGTH2NDL
+	JPC	DISP_TAILNUM_END	;<=15 exit
+
+	MOV	BASE_ADDR,@0X10				;base
+	MOV	OFFSET_S,@(NUM_START+LENGTH2NDL-1)	;source
+	MOV	OFFSET_D,@(LCD_2NDLINE+1)		;destination
+
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F	
+	MOV	COUNT,A
+	SUB	A,@28			;Can't display the tel-number when the length over the 28
+	JPNC	DISP_TAILNUM_END	
+
+	MOV	A,@(LENGTH2NDL-1)
+	SUB	COUNT,A
+	
+
+	LCALL	COPY_DATA
+;---Start with"-"		
+	BLOCK	0
+	MOV	_RC,@LCD_2NDLINE
+	MOV	_RD,@NUM_AMPERE
+DISP_TAILNUM_END:
+
+	RET	
+;###############################################################################
+;	DISP_ID
+;
+;	input : acc = the ID(HEX - 0..0xC7)
+;	output: no
+;
+;
+;###############################################################################
+DISP_ID:
+	MOV	B1_SEC_REG,A
+	ADD	A,@(0X100-200)		;>=200,can't display
+	JPC	DISP_ID_5
+;--- <200
+	CLRC
+	MOV	A,B1_SEC_REG
+	ADD	A,@(0X100-100)		;>=100
+	JPNC	DISP_ID_1
+	MOV	B1_SEC_REG,A
+DISP_ID_1:
+	JPC	DISP_ID_3	;Check STATUS.C=1 if need to display "1" or not
+;DISP_ID_2:
+	
+	MOV	A,@~(1<<4)	;"1" off
+	CALL	CLRVGASTAMP2
+	
+	JMP	DISP_ID_4
+DISP_ID_3:	
+	MOV	A,@(1<<4)	;"1" on
+	CALL	VGASTAMP2
+DISP_ID_4:	
+	MOV	A,B1_SEC_REG
+	LCALL	HEX_DGT
+	MOV	B1_SEC_REG,A
+
+	;PAGE	#(VGA)
+	MOV	A,@(STYLE_RIGHT)	;!!!
+	CALL	VGANUM1
+	SWAPA	B1_SEC_REG		;the index high nibble
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGANUM1
+	MOV	A,B1_SEC_REG		;the index low nibble
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码
+	CALL	VGANUM1
+	MOV	A,@(CH_END)
+	CALL	VGANUM1
+	CALL	VGADRAWNUM1
+	;PAGE	#($)
+	
+	RET
+	
+DISP_ID_5:
+
+	;PAGE	#(VGA)
+	MOV	A,@~(1<<4)	;"1" off
+	CALL	CLRVGASTAMP2
+
+	MOV	A,@(STYLE_RIGHT)	;!!!
+	CALL	VGANUM1
+	MOV	A,@NUM_BLANK
+	CALL	VGANUM1
+	MOV	A,@NUM_BLANK	
+	CALL	VGANUM1
+	MOV	A,@(CH_END)
+	CALL	VGANUM1
+	CALL	VGADRAWNUM1
+	;PAGE	#($)
+	
+	RET
+;-------------------------------------------------------------------------------
+;	Disp the 2nd line(messages calls)(new/all)
+;	use it in idle
+;-------------------------------------------------------------------------------
+DISP_NEWVPCID:
+	BLOCK	0
+	BANK	1
+	
+	MOV	B1_DAY_REG,B1_MSG_N
+	MOV	B1_MON_REG,B1_CID_N
+	
+	JMP	VPCID_DISP
+;-------------------------------------------------------------------------------
+DISP_ALLVPCID:
+	BLOCK	0
+	BANK	1
+;---hour
+	MOV	B1_DAY_REG,B1_MSG_T
+	MOV	B1_MON_REG,B1_CID_T
+VPCID_DISP:
+	MOV	A,@(LCD_CTRL+OFFSET2NDL+4)
+	MOV	_RC,A
+	
+	MOV	A,B1_DAY_REG
+	PAGE	#(HEX_DGT)	;Note invoke this subroutine only(no other subroutine or jmp)
+	CALL	HEX_DGT
+	PAGE	#($)
+	MOV	TEMP0,A
+	AND	A,@0X0F
+	ADD	A,@CNumDelta	;转换成机内码
+	MOV	_RD,A		;个位
+	DEC	_RC
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta	;转换成机内码
+	MOV	_RD,A		;十位
+;---
+	MOV	A,@(LCD_CTRL+OFFSET2NDL+11)
+	MOV	_RC,A
+
+	MOV	A,B1_MON_REG
+	PAGE	#(HEX_DGT)	;Note invoke this subroutine only(no other subroutine or jmp)
+	CALL	HEX_DGT
+	PAGE	#($)
+	MOV	TEMP0,A
+	AND	A,@0X0F
+	ADD	A,@CNumDelta	;转换成机内码
+	MOV	_RD,A		;个位
+	DEC	_RC
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta	;转换成机内码
+	MOV	_RD,A		;十位
+
+	RET
+	
+	

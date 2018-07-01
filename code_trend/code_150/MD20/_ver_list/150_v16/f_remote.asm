@@ -1,0 +1,1272 @@
+.NOLIST
+.INCLUDE MD20U.INC
+.INCLUDE REG_D20.inc
+.INCLUDE CONST.INC
+.INCLUDE EXTERN.INC
+;-------------------------------------------------------------------------------
+.EXTERN	SetFlashStartAddress
+.EXTERN	LoadHostCode
+.EXTERN	GetOneConst	;(INPUT=ACCH(ProgramRamAddress),OUTPUT=ACCH(ReadData))
+.EXTERN	GetMoreConst	;(INPUT=ACCH(ProgramRamStartingAddress)ACCL(ReadWordNumber)AR1(StoreDataRamAddress),OUTPUT=)
+;-------------------------------------------------------------------------------
+.GLOBAL	REMOTE_PRO
+;-------------------------------------------------------------------------------
+.LIST
+.ORG    ADDR_SECOND
+;-------------------------------------------------------------------------------
+REMOTE_PRO:
+	LAC	MSG			;接线后按ON/OFF
+	XORL	CMSG_KEY7S
+	BS	ACZ,REMOTE_CPC_STOP
+	
+	LAC	MSG			;接线后摘机(相当于CPC)
+	XORL	CMSG_CPC
+	BS	ACZ,REMOTE_CPC_RUN
+	
+	LAC	PRO_VAR
+	ANDL	0X0F
+	BS	ACZ,REMOTE_PRO0		;Idle
+	SBHK	1
+	BS	ACZ,REMOTE_PRONPLY	;play new messages
+	SBHK	1
+	BS	ACZ,REMOTE_PROAPLY	;play all messages
+	SBHK	1
+	BS	ACZ,REMOTE_PRO3		;play voice prompt
+	SBHK	1
+	;BS	ACZ,REMOTE_PRO4		;reserved
+	SBHK	1
+	;BS	ACZ,REMOTE_PRO5		;reserved
+	SBHK	1
+	;BS	ACZ,REMOTE_PRO6		;reserved
+	SBHK	1
+	BS	ACZ,REMOTE_PRO7		;record/play OGM
+	SBHK	1
+	BS	ACZ,REMOTE_PRO8		;Indoor monitor
+	SBHK	1
+	BS	ACZ,REMOTE_PRO9
+	SBHK	1
+	BS	ACZ,REMOTE_PRO10	;exit
+
+	RET
+REMOTE_CPC_RUN:
+	CALL	INIT_DAM_FUNC
+	CALL	SET_COMPS
+
+	CALL	REAL_DEL
+	CALL	GC_CHK
+	
+	LACK	0X020
+	CALL	STOR_VP
+
+	LACK	10
+	SAH	PRO_VAR
+
+	;LACL	0XFF01
+	;CALL	STOR_VP
+	;CALL	DAA_LIN_SPK
+	
+	RET
+REMOTE_CPC_STOP:
+	LACL	CMSG_CPC
+	SAH	MSG
+	
+	BS	B1,REMOTE_PRO
+;===============================================================================
+REMOTE_PRO0:
+	LAC	MSG
+	XORL	CMSG_INIT		;INITIAL(发两声BEEP)
+	BS	ACZ,REMOTE_PRO0_INIT
+;REMOTE_PRO0_1:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PRO0_REV_DTMF
+;REMOTE_PRO0_2:	
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,REMOTE_PRO0_STOPVP	;VP完
+;REMOTE_PRO0_3:	
+	LAC	MSG
+	XORL	CMSG_BTONE
+	BS	ACZ,REMOTE_PRO0_TONE
+;REMOTE_PRO0_4:	
+	LAC	MSG
+	XORL	CMSG_CTONE
+	BS	ACZ,REMOTE_PRO0_TONE
+;REMOTE_PRO0_5:	
+	LAC	MSG
+	XORL	CMSG_TMR
+	BS	ACZ,REMOTE_PRO0_TMR
+		
+	RET
+;-------------------------------------------------
+REMOTE_PRO0_INIT:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	CALL	BBEEP
+	
+	lack	50
+	call	DELAY
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X9E
+	CALL	SEND_DAT
+	LACK	5
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT	;enter remote
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+REMOTE_PRO0_STOPVP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_REC
+	
+	CALL	LINE_START
+	
+	LACK	0			;开始计时
+	SAH	PRO_VAR1
+	LACL	1000
+	CALL	SET_TIMER
+	
+	CALL	BCVOX_INIT
+	
+	RET
+;---------------------------------------	
+REMOTE_PRO0_REV_DTMF:
+	LACK	0
+	SAH	PRO_VAR1
+	CALL	BCVOX_INIT
+	
+	LAC	DTMF_VAL
+	CALL	RMTFUNC_CHK
+	ANDL	0X0FF
+	SAH	MSG
+	
+	LAC	MSG
+	SBHK	0X11
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_11	;Play NEW-message in mailbox-1
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_12	;Play NEW-message in mailbox-2
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_13	;Play NEW-message in mailbox-3
+
+	LAC	MSG
+	SBHK	0X21
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_21	;Play ALL-message in mailbox-1
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_22	;Play ALL-message in mailbox-2
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_23	;Play ALL-message in mailbox-3
+	
+	LAC	MSG
+	SBHK	0X31
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_31	;Del ALL-old-message in mailbox-1
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_32	;Del ALL-old-message in mailbox-2
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_33	;Del ALL-old-message in mailbox-3
+	
+	LAC	DTMF_VAL
+	ANDK	0XF
+	SBHK	0X7
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_7	;7---record/play OGM
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_8	;8---indoormonitor
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_9	;9---on/off
+	SBHK	0X05
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_E	;*---remote prompt
+	SBHK	0X01
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_F	;#---hang off	
+
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_0:
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_11:
+	LACK	1
+	SAH	MBOX_ID
+	
+	BS	B1,REMOTE_PRO0_PLAYNEW
+REMOTE_PRO0_REV_DTMF_12:
+	LACK	2
+	SAH	MBOX_ID
+
+	BS	B1,REMOTE_PRO0_PLAYNEW
+REMOTE_PRO0_REV_DTMF_13:
+	LACK	3
+	SAH	MBOX_ID
+
+	;BS	B1,REMOTE_PRO0_PLAYNEW
+REMOTE_PRO0_PLAYNEW:	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	CALL	VPMSG_CHK
+
+	LACL	0XAAAA
+	SAH	PSWORD_TMP	;clear command first
+
+	BIT	ANN_FG,12
+	BS	TB,REMOTE_PRO0_PLAYNEW_1
+
+	CALL	VP_NO			;no
+	CALL	VP_NEW			;new
+	CALL	VP_MESSAGES		;MESSAGES
+
+	CALL	BBEEP
+
+	LACK	0
+	SAH	PRO_VAR
+	
+	BS	B1,REMOTE_PRO0_PLAYNEW_END
+;---
+REMOTE_PRO0_PLAYNEW_1:
+	LACK	1
+	SAH	PRO_VAR
+
+	LACK	0
+	SAH	MSG_ID
+
+	LAC	MSG_N
+	SBHK	1
+	BS	ACZ,REMOTE_PRO0_PLAYNEW_ONEMESSAGE
+	
+	LAC	MSG_N
+	CALL	ANNOUNCE_NUM
+	CALL	VP_NEW			;new
+	CALL	VP_MESSAGES		;MESSAGES
+	
+	BS	B1,REMOTE_PRO0_PLAYNEW_END
+REMOTE_PRO0_PLAYNEW_ONEMESSAGE:
+	CALL	VP_ONE
+	CALL	VP_NEW			;new
+
+	CALL	VP_MESSAGE		;MESSAGE
+REMOTE_PRO0_PLAYNEW_END:	
+	
+	RET	
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_21:
+	LACK	1
+	SAH	MBOX_ID
+	BS	B1,REMOTE_PRO0_PLAYALL
+REMOTE_PRO0_REV_DTMF_22:
+	LACK	2
+	SAH	MBOX_ID
+	BS	B1,REMOTE_PRO0_PLAYALL
+REMOTE_PRO0_REV_DTMF_23:
+	LACK	3
+	SAH	MBOX_ID
+REMOTE_PRO0_PLAYALL:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	CALL	VPMSG_CHK
+
+	LACL	0XAAAA
+	SAH	PSWORD_TMP	;clear command first
+	
+	LACK	0
+	SAH	MSG_ID
+	
+	BIT	ANN_FG,14
+	BS	TB,REMOTE_PRO0_PLAYALL_1
+
+	CALL	VP_NO			;no
+	CALL	VP_MESSAGES		;MESSAGES
+	CALL	BBEEP
+	
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+;-----------------------------
+REMOTE_PRO0_PLAYALL_1:
+	LACK	2
+	SAH	PRO_VAR
+
+	LAC	MSG_T
+	SBHK	1
+	BS	ACZ,REMOTE_PRO0_PLAYALL_ONEMESAGE
+	
+	LAC	MSG_T
+	CALL	ANNOUNCE_NUM
+	CALL	VP_MESSAGES		;MESSAGES
+	
+	BS	B1,REMOTE_PRO0_PLAYALL_END
+REMOTE_PRO0_PLAYALL_ONEMESAGE:
+	CALL	VP_ONE
+	CALL	VP_MESSAGE		;MESSAGE
+REMOTE_PRO0_PLAYALL_END:
+
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_31:
+	LACK	1
+	SAH	MBOX_ID
+	BS	B1,REMOTE_PRO0_DELALLOLD
+REMOTE_PRO0_REV_DTMF_32:
+	LACK	2
+	SAH	MBOX_ID
+	BS	B1,REMOTE_PRO0_DELALLOLD
+REMOTE_PRO0_REV_DTMF_33:
+	LACK	3
+	SAH	MBOX_ID
+REMOTE_PRO0_DELALLOLD:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	
+	LACK	0
+	SAH	PRO_VAR
+	SAH	PRO_VAR1
+
+	LACL	0XAAAA
+	SAH	PSWORD_TMP	;clear command first
+
+	CALL	VPMSG_CHK
+	BIT	ANN_FG,14
+	BS	TB,REMOTE_PRO0_DELALLOLD_1
+	
+	CALL	VP_NO			;no
+	CALL	VP_MESSAGES		;MESSAGES
+	CALL	BBEEP
+	
+	BS	B1,REMOTE_PRO0_DELALLOLD_END
+REMOTE_PRO0_DELALLOLD_1:
+	LACL	0X6100
+	CALL	DAM_BIOSFUNC
+	LACL	0X6080
+	CALL	DAM_BIOSFUNC
+	
+	CALL	TELNUMALL_DEL	;删除没有对应message的电话号码
+
+	CALL	BBEEP
+REMOTE_PRO0_DELALLOLD_END:	
+	
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_7:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	
+	BIT	ANN_FG,13
+	BS	TB,REMOTE_PRO0_REV_DTMF_7_FUL
+	
+	LACK	0X07
+	SAH	PRO_VAR
+
+	CALL	LBEEP
+
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_7_FUL:	;直接退出
+	CALL	BBBEEP
+	
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_8:
+	CALL	INIT_DAM_FUNC
+	
+	LACK	0X18
+	SAH	PRO_VAR
+
+	CALL	LBEEP		;BEEP
+	CALL	DAA_LIN_SPK
+	
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_9:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	
+	LAC	EVENT
+	XORL	0X0200
+	SAH	EVENT
+	
+	LACK	0
+	SAH	PRO_VAR
+	
+	BIT	EVENT,9
+	BS	TB,REMOTE_PRO0_REV_DTMF_9_1
+	
+	CALL	LBEEP		;BEEP
+
+	RET
+REMOTE_PRO0_REV_DTMF_9_1:
+	CALL	BEEP
+	
+	RET
+;---------------------------------------
+REMOTE_PRO0_REV_DTMF_E:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	
+        LACL    VP_MENU_QUEUE
+        SAH	ADDR_S
+	
+	CALL	GET_LANGUAGE
+	BS	ACZ,REMOTE_PRO0_REV_DTMF_A_CHK
+
+        LACL    VP_GMENU_QUEUE
+        SAH	ADDR_S
+REMOTE_PRO0_REV_DTMF_A_CHK:
+	
+	LAC	ADDR_S
+	CALL	GetOneConst
+        SAH     MSG_T
+	LACK	1
+	SAH	MSG_ID
+
+	LAC	ADDR_S
+	ADH	MSG_ID
+	CALL	GetOneConst
+        ORL	0XFF00
+        CALL	STOR_VP
+        
+	LACK	3
+	SAH	PRO_VAR
+
+	RET	
+REMOTE_PRO0_REV_DTMF_F:		;退出准备
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	CALL	BBEEP
+
+	LACK	0X0A
+	SAH	PRO_VAR
+	
+	;LACL	58		;release line
+	;ORL	0XFF00
+	;CALL	STOR_VP
+
+	RET
+
+	
+REMOTE_PRO0_TMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	SBHK	8
+	BZ	SGN,REMOTE_PRO0_REV_DTMF_F
+	
+	RET	
+;=======================================================================
+;11111111111111111111111111111111111111111111111111111111111111111111111
+REMOTE_PRONPLY:				;播放新message
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0XF
+	BS	ACZ,REMOTE_PRONPLY_0	;playing
+	SBHK	1
+	BS	ACZ,REMOTE_PRONPLY_1	;Pause
+
+	RET
+REMOTE_PRONPLY_0:
+	LAC	MSG
+	XORL	CVP_STOP		;PLAY END
+	BS	ACZ,REMOTE_PRO1_PLAY_OVER
+;REMOTE_PRO1_1:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PRO1_REV_DTMF
+;REMOTE_PRO1_2:
+	LAC	MSG
+	XORL	CMSG_BTONE		;CMSG_BTONE
+	BS	ACZ,REMOTE_PRO10_END
+	RET
+;---------------处理消息
+REMOTE_PRO1_PLAY_OVER:
+
+	LAC	MSG_ID
+	SBH	MSG_N
+	BZ	SGN,REMOTE_PROX_EXIST_PLY
+;REMOTE_PRO1_PLAY_OVER1:
+	LAC	MSG_ID			;next message
+	ADHK	1
+	SAH	MSG_ID
+	
+REMOTE_PRO1_PLAY_LOADVP:	
+	CALL	VP_MESSAGE
+	LAC	MSG_ID			;message_ID(VP)
+	CALL	ANNOUNCE_NUM
+	
+	CALL	MSG_WEEKNEW
+	CALL	MSG_HOURNEW
+	CALL	MSG_MINNEW
+
+	LAC	MSG_ID
+	ORL	0XFD00
+	CALL	STOR_VP
+	
+	RET
+	
+;---------------------------------------	
+REMOTE_PRO1_REV_DTMF:
+	LAC	DTMF_VAL
+	SBHL	0X0F0
+	SBHK	3
+	BS	ACZ,REMOTE_PRO1_REV_DTMF_3	;3
+	SBHK	1
+	BS	ACZ,REMOTE_PRO1_REV_DTMF_4	;4
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_REV_DTMF_5	;5
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_REV_DTMF_6	;6
+	SBHK	8
+	BS	ACZ,REMOTE_PROX_REV_DTMF_STAR	;*
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_EXIST_PLY	;#
+	RET
+;---------------------------------------
+REMOTE_PRO1_REV_DTMF_3:
+	CALL	INIT_DAM_FUNC
+	LAC	MSG_ID
+	ORL	0X2480
+	CALL	DAM_BIOSFUNC
+	
+	LAC	MSG_ID
+	CALL	GET_USRDATNEW
+	CALL	GET_TELID
+	CALL	DEL_ONETEL
+	;CALL	TEL_GC_CHK	;panic??????????????????????????
+	
+	CALL	BBEEP
+	
+	RET
+;---------------------------------------
+REMOTE_PRO1_REV_DTMF_4:
+	
+	CALL	INIT_DAM_FUNC
+	
+	
+	LAC	MSG_ID
+	ANDL	0X0FF
+	SBHK	1
+	BS	ACZ,REMOTE_PRO1_REV_DTMF_4_1 ;第一个吗?
+
+	LAC	MSG_ID
+	SBHK	1
+	SAH	MSG_ID	
+
+REMOTE_PRO1_REV_DTMF_4_1:
+	BS	B1,REMOTE_PRO1_PLAY_LOADVP
+;---------------------------------------	
+REMOTE_PROX_REV_DTMF_5:
+	CALL	INIT_DAM_FUNC		;将MSG_ID转化成具有相同的USER_DATA的VP的最小值
+	BS	B1,REMOTE_PRO1_PLAY_LOADVP
+	
+
+REMOTE_PROX_REV_DTMF_STAR:
+	LAC	CONF
+	ORL	1<<8
+	CALL	DAM_BIOSFUNC
+	
+	LAC	PRO_VAR
+	ORK	0X10
+	SAH	PRO_VAR
+	
+	LACL	1000
+	CALL	SET_TIMER
+	LACK	0
+	SAH	PRO_VAR1
+	
+	RET
+;---------------------------------------
+REMOTE_PRONPLY_1:
+REMOTE_PROAPLY_1:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PROX_PAUSE_REV_DTMF
+;REMOTE_PROX_PAUSE_1:
+	LAC	MSG
+	XORL	CMSG_TMR		;CMSG_TMR
+	BS	ACZ,REMOTE_PROX_PAUSE_TIMER
+	
+	RET
+;---------------------------------------
+REMOTE_PROX_PAUSE_REV_DTMF:
+	LAC	DTMF_VAL
+	SBHL	0X0F0
+	SBHK	3
+	BS	ACZ,REMOTE_PROX_REV_DTMF_3	;3	
+	SBHK	1
+	BS	ACZ,REMOTE_PRO1_REV_DTMF_4	;4
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_REV_DTMF_5	;5
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_REV_DTMF_6	;6
+	SBHK	8
+	BS	ACZ,REMOTE_PRO1_PAUSE_REV_DTMF_STAR	;*
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_EXIST_PLY	;#
+	
+	RET
+;---------------------------------------
+REMOTE_PROX_REV_DTMF_3:
+	BIT	ANN_FG,12
+	BS	TB,REMOTE_PRO1_REV_DTMF_3
+	BS	B1,REMOTE_PRO2_REV_DTMF_3
+;---------------------------------------
+REMOTE_PROX_PAUSE_TIMER:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	SBHK	10
+	BZ	ACZ,REMOTE_PRO1_PAUSE_TIMER_1
+	
+	CALL	INIT_DAM_FUNC
+		
+
+	CALL	VP_ENDOF
+	CALL	VP_MESSAGES
+
+	CALL	BBEEP
+	
+	LACK	0
+	SAH	PRO_VAR
+	
+REMOTE_PRO1_PAUSE_TIMER_1:		
+	RET
+;---------------------------------------
+REMOTE_PRO1_PAUSE_REV_DTMF_STAR:
+
+	LAC	CONF
+	ANDL	~(1<<8)
+	CALL	DAM_BIOSFUNC
+	
+	LAC	PRO_VAR
+	ANDL	0XFF0F
+	SAH	PRO_VAR
+	
+	RET
+;=======================================================================
+;22222222222222222222222222222222222222222222222222222222222222222222222
+REMOTE_PROAPLY:
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0XF
+	BS	ACZ,REMOTE_PROAPLY_0
+	SBHK	1
+	BS	ACZ,REMOTE_PROAPLY_1
+	
+	RET
+REMOTE_PROAPLY_0:	
+	LAC	MSG
+	XORL	CVP_STOP		;PLAY END
+	BS	ACZ,REMOTE_PRO2_PLAY_OVER
+;REMOTE_PRO2_1:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PRO2_REV_DTMF
+;REMOTE_PRO2_2:
+	LAC	MSG
+	XORL	CMSG_BTONE		;CMSG_BTONE
+	BS	ACZ,REMOTE_PRO10_END
+	RET
+;---------------------------------------
+REMOTE_PRO2_PLAY_OVER:
+	CALL	GET_TOTALMSG
+	SAH	MSG_T
+	
+	LAC	MSG_ID
+	SBH	MSG_T
+	BZ	SGN,REMOTE_PROX_EXIST_PLY
+;REMOTE_PRO2_PLAY_OVER1:
+	
+	LAC	MSG_ID			;next message
+	ADHK	1
+	SAH	MSG_ID
+
+REMOTE_PRO2_PLAY_LOADVP:
+	CALL	VP_MESSAGE
+	LAC	MSG_ID			;message_ID(VP)
+	CALL	ANNOUNCE_NUM
+	
+	CALL	MSG_WEEK
+	CALL	MSG_HOUR
+	CALL	MSG_MIN
+
+	LAC	MSG_ID
+	ORL	0XFE00
+	CALL	STOR_VP
+	
+	RET
+;---------------------------------------
+REMOTE_PRO2_REV_DTMF:
+	LAC	DTMF_VAL
+	SBHL	0X0F0
+	SBHK	3
+	BS	ACZ,REMOTE_PRO2_REV_DTMF_3	;3
+	SBHK	1
+	BS	ACZ,REMOTE_PRO2_REV_DTMF_4	;4
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_REV_DTMF_5	;5
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_REV_DTMF_6	;6
+	SBHK	8
+	BS	ACZ,REMOTE_PROX_REV_DTMF_STAR	;*
+	SBHK	1
+	BS	ACZ,REMOTE_PROX_EXIST_PLY	;#
+	
+	RET
+;---------------------------------------
+REMOTE_PRO2_REV_DTMF_3:
+	CALL	INIT_DAM_FUNC
+	LAC	MSG_ID
+	ORL	0X2080
+	CALL	DAM_BIOSFUNC
+	
+	LAC	MSG_ID
+	CALL	GET_USRDAT
+	CALL	GET_TELID
+	CALL	DEL_ONETEL
+	;CALL	TEL_GC_CHK	;panic??????????????????????????
+
+	CALL	BBEEP
+
+	RET
+;---------------------------------------
+REMOTE_PRO2_REV_DTMF_4:
+	CALL	INIT_DAM_FUNC
+
+	LAC	MSG_ID
+	ANDK	0X07F
+	SBHK	1
+	BS	ACZ,REMOTE_PRO2_REV_DTMF_4_1 ;第一个吗?
+	LAC	MSG_ID
+	SBHK	1
+	SAH	MSG_ID
+
+	BS	B1,REMOTE_PRO2_REV_DTMF_4_2
+REMOTE_PRO2_REV_DTMF_4_1:
+	LACK	1
+	SAH	MSG_ID
+REMOTE_PRO2_REV_DTMF_4_2:
+	BS	B1,REMOTE_PRO2_PLAY_LOADVP
+	
+;---------------------------------------
+REMOTE_PROX_REV_DTMF_6:
+	CALL	INIT_DAM_FUNC
+
+	LACL	CVP_STOP
+	CALL	STOR_MSG
+	
+	RET
+;---------------------------------------
+REMOTE_PROX_EXIST_PLY:			;退出remote playing
+	CALL	INIT_DAM_FUNC
+	CALL	REAL_DEL		;0x6100
+	CALL	GC_CHK
+	
+	CALL	NEWICM_CHK
+	
+	CALL	VPMSG_CHK	;必须在这里重设标志(当前MBOX_ID)
+	CALL	VP_ENDOF		;END OF
+	CALL	VP_MESSAGES		;MESSAGES
+	CALL	BBEEP
+
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+;=======================================================================
+;33333333333333333333333333333333333333333333333333333333333333333333333
+REMOTE_PRO3:
+;REMOTE_PRO3_0_0:
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,REMOTE_PRO3_STOPVP	;VP完
+;REMOTE_PRO3_0_1:	
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PRO3_REV_DTMF
+
+	RET
+REMOTE_PRO3_REV_DTMF:
+	;CALL	DAA_LIN_REC
+	;CALL	INIT_DAM_FUNC
+	BS	B1,REMOTE_PRO0_REV_DTMF
+
+REMOTE_PRO3_STOPVP:
+	LAC	ADDR_S
+	CALL	GetOneConst
+	SAH	MSG_T
+
+	LAC	MSG_ID	
+	ADHK	1
+	SAH	MSG_ID
+	
+	SBHK	1
+	SBH	MSG_T
+	BZ	SGN,REMOTE_PRO3_OVERVP
+	
+	CALL	INIT_DAM_FUNC
+	
+	LAC	ADDR_S
+	ADH	MSG_ID
+	CALL	GetOneConst
+        ORL	0XFF00
+        CALL	STOR_VP
+	
+	RET
+REMOTE_PRO3_OVERVP:
+	CALL	BBEEP
+	
+	LACK	0
+	SAH	PRO_VAR
+	SAH	PRO_VAR1
+	
+	
+	RET
+;=======================================================================
+;44444444444444444444444444444444444444444444444444444444444444444444444
+;REMOTE_PRO4:
+	;RET
+;=======================================================================
+;55555555555555555555555555555555555555555555555555555555555555555555555
+;REMOTE_PRO5:
+	;RET
+;=======================================================================
+;66666666666666666666666666666666666666666666666666666666666666666666666
+;REMOTE_PRO6:
+	;RET
+;=======================================================================
+;77777777777777777777777777777777777777777777777777777777777777777777777
+REMOTE_PRO7:
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0XF
+	BS	ACZ,REMOTE_PRO7_VOP	;(0x0007)VOP
+	SBHK	1
+	BS	ACZ,REMOTE_PRO7_REC	;(0x0017)record OGM
+	SBHK	1
+	BS	ACZ,REMOTE_PRO7_PLY	;(0x0027)play OGM
+	
+	RET
+;---------------------------------------
+REMOTE_PRO7_REC:
+	LAC	MSG
+	XORL	CMSG_TMR		;TIMER
+	BS	ACZ,REMOTE_PRO7_RECORD_TIMER
+;REMOTE_PRO7_RECORD_1:
+	LAC	MSG
+	XORL	CREV_DTMF		;DTMF
+	BS	ACZ,REMOTE_PRO7_RECORD_DTMF
+;REMOTE_PRO7_RECORD_2:	
+	LAC	MSG
+	XORL	CMSG_BTONE
+	BS	ACZ,REMOTE_PRO0_TONE
+;REMOTE_PRO7_RECORD_3:	
+	LAC	MSG
+	XORL	CMSG_CTONE
+	BS	ACZ,REMOTE_PRO0_TONE
+;REMOTE_PRO7_RECORD_4:	
+	LAC	MSG
+	XORL	CMSG_TMR
+	BS	ACZ,REMOTE_PRO0_TMR
+;REMOTE_PRO7_RECORD_5:
+	LAC	MSG
+	XORL	CREC_FULL		;REC_FULL
+	BS	ACZ,REMOTE_PRO7_LOADOGM
+
+	RET
+;---------------------------------------
+REMOTE_PRO7_RECORD_TIMER:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	
+	SBHK	120
+	BZ	SGN,REMOTE_PRO7_LOADOGM
+	
+;REMOTE_PRO7_RECORD_TIMER_END:	
+	RET
+;-------	
+REMOTE_PRO7_RECORD_DTMF:
+	LAC	DTMF_VAL
+	SBHL	0X0FF
+	BZ	ACZ,REMOTE_PRO7_RECORD_DTMF_END	;pressed "#"?
+
+REMOTE_PRO7_RECORD_DTMF_1:		;处理"#","mfull"
+	LAC	PRO_VAR1
+	SBHK	3
+	BZ	SGN,REMOTE_PRO7_LOADOGM
+;---LESS THAN 3S
+	LAC	CONF
+	ORL	1<<11
+	CALL	DAM_BIOSFUNC
+REMOTE_PRO7_LOADOGM:
+	CALL	INIT_DAM_FUNC
+	CALL	GC_CHK
+	
+	CALL	DAA_LIN_SPK
+	
+	LACK	0X027
+	SAH	PRO_VAR
+	
+	CALL	OGM_STATUS
+	BS	ACZ,REMOTE_PRO7_LOADDEFAULTOGM
+	
+	LAC	MSG_ID
+	ANDL	0X0FF
+	ORL	0XFE00
+	CALL	STOR_VP
+REMOTE_PRO7_RECORD_DTMF_END:
+	RET
+REMOTE_PRO7_LOADDEFAULTOGM:
+
+	CALL	INIT_DAM_FUNC
+
+	LAC	MSG_N
+	ANDK	0X0F
+	CALL	DEFOGM_LOCALPLY		;load default OGM
+
+	RET
+;-------------------------------------------------------------------------------
+REMOTE_PRO7_VOP:
+	LAC	MSG
+	XORL	CVP_STOP		;PLAY END
+	BS	ACZ,REMOTE_PRO7_VOP_OVER
+	
+	RET
+;---------------------------------------
+REMOTE_PRO7_VOP_OVER:
+	CALL	INIT_DAM_FUNC
+	LACK	0X017
+	SAH	PRO_VAR
+	
+	CALL	OGM_STATUS
+;-------delete the old OGM----------------	
+	LAC	MSG_ID
+	ORL	0X6000
+	CALL	DAM_BIOSFUNC
+
+	LAC	MSG_N
+    	ORL	0X8D00|0X70
+    	CALL	DAM_BIOSFUNC		;set user index data0"OGM_ID"
+	
+	LACK	0
+	SAH	PRO_VAR1
+	LACL	1000
+	CALL	SET_TIMER
+	
+	CALL	DAA_LIN_REC
+	CALL	REC_START
+	
+	RET
+;-------------------------------------------------------------------------------
+REMOTE_PRO7_PLY:
+	LAC	MSG
+	XORL	CVP_STOP		;CVP_STOP
+	BS	ACZ,REMOTE_PRO7_VPSTOP
+;REMOTE_PRO7_2_1:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PRO7_2_REV_DTMF
+	
+	RET
+;---------------------------------------
+REMOTE_PRO7_VPSTOP:
+	CALL	INIT_DAM_FUNC
+	LACK	0
+	SAH	PRO_VAR
+	CALL	BBEEP
+	
+	RET
+;---------------------------------------
+REMOTE_PRO7_2_REV_DTMF:
+	LAC	DTMF_VAL
+	SBHL	0X0F0
+	SBHK	3
+	BS	ACZ,REMOTE_PRO7_2_REV_DTMF_3	;3
+	SBHK	12
+	BS	ACZ,REMOTE_PRO7_VPSTOP	;#
+	
+	RET
+;---------------------------------------
+REMOTE_PRO7_2_REV_DTMF_3:
+	CALL	INIT_DAM_FUNC
+	
+	CALL	OGM_STATUS
+;-------delete the OGM----------------	
+	LAC	MSG_ID
+	ORL	0X2080
+	CALL	DAM_BIOSFUNC
+	
+	LAC	CONF
+	ANDL	0X007F
+	ORL	0X6100
+	CALL	DAM_BIOSFUNC
+
+	CALL	REAL_DEL
+	CALL	GC_CHK
+
+	CALL	BBEEP
+	
+	LACK	0
+	SAH	PRO_VAR
+	
+	RET
+
+;=======================================================================
+;88888888888888888888888888888888888888888888888888888888888888888888888
+REMOTE_PRO8:
+	LAC	PRO_VAR
+	SFR	4
+	BS	ACZ,REMOTE_PRO8_0_0
+	SBHK	1
+	BS	ACZ,REMOTE_PRO8_VOPLAY
+	
+;---------------------------------------
+REMOTE_PRO8_0_0:	
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,REMOTE_PRO8_REV_DTMF
+;REMOTE_PRO8_0_1:
+	LAC	MSG
+	XORL	CMSG_TMR		;TIMER
+	BS	ACZ,REMOTE_PRO8_TIMER
+;REMOTE_PRO8_0_2:
+	LAC	MSG
+	XORL	CMSG_BTONE		;BTONE
+	BS	ACZ,REMOTE_PRO0_TONE
+
+	
+	RET
+;---------------处理消息
+REMOTE_PRO8_REV_DTMF:
+	LAC	DTMF_VAL
+	SBHL	0X0F0
+	SBHK	14
+	BS	ACZ,REMOTE_PRO8_REV_DTMF_STAR	;*
+	SBHK	1
+	BS	ACZ,REMOTE_PRO8_REV_DTMF_POUND	;#	
+	
+	RET
+REMOTE_PRO8_REV_DTMF_STAR:
+	LACK	0
+	SAH	PRO_VAR1
+	CALL	BCVOX_INIT
+	
+	RET
+REMOTE_PRO8_REV_DTMF_POUND:
+	CALL	INIT_DAM_FUNC
+	CALL	SET_COMPS	;Note only for room-monitor 
+	
+	CALL	BCVOX_INIT
+	
+	LACK	0
+	SAH	PRO_VAR
+	SAH	PRO_VAR1
+	
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+
+	RET
+REMOTE_PRO8_TIMER:
+	LACL	8000
+	SAH	TMR_VOX
+	SAH	TMR_CTONE	;防止其值为负值时挤暴消息队列而造成计时不准确
+	
+	LAC	PRO_VAR1	;计时
+	ADHK	1
+	SAH	PRO_VAR1
+	SBHK	30
+	BZ	SGN,REMOTE_PRO8_REV_DTMF_POUND	;30s计时
+REMOTE_PRO8_TIMER_END:
+		
+	RET
+;-------
+REMOTE_PRO8_VOPLAY:
+	LAC	MSG
+	XORL	CVP_STOP			;CVP_STOP
+	BS	ACZ,REMOTE_PRO8_VOPLAY_END
+	
+	RET	
+REMOTE_PRO8_VOPLAY_END:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ROM_MOR
+
+	CALL	LINE_START
+	CALL	BCVOX_INIT
+	
+	LACK	8
+	SAH	PRO_VAR
+	
+	LACL	1000
+	CALL	SET_TIMER
+	LACK	0
+	SAH	PRO_VAR1
+	
+
+	RET	
+;=======================================================================
+;99999999999999999999999999999999999999999999999999999999999999999999999
+REMOTE_PRO9:	
+	LACK	0
+	SAH	PRO_VAR
+	
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+	RET
+;=======================================================================
+;#######################################################################
+REMOTE_PRO10:
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,REMOTE_PRO10_END
+	
+	RET
+;---------------------------------------
+REMOTE_PRO0_TONE:
+REMOTE_PRO10_END:
+	CALL	INIT_DAM_FUNC
+	CALL	TEL_GC_CHK
+	CALL	REAL_DEL	;0x6100
+	CALL	GC_CHK
+			
+	CALL	DAA_OFF	
+	CALL	HOOK_OFF
+
+	CALL	CLR_FUNC	;先空	
+	LACK	0
+	SAH	PRO_VAR
+	LACL	CMODE9		;Line OFF
+	CALL	DAM_BIOSFUNC
+	
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0XD0		;告诉MCU挂机了
+	CALL	SEND_DAT
+	LACK	1
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CMODE9		;Line OFF
+	CALL	DAM_BIOSFUNC
+
+	CALL	VPMSG_CHK
+	CALL	NEWICM_CHK
+	LACK	1
+	SAH	MBOX_ID
+	
+	CALL	VPMSG_CHK
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	0X83		;录音数量同步(3bytes)
+	CALL	SEND_DAT
+	LAC	MSG_N
+	CALL	SEND_DAT
+	LAC	MSG_T
+	CALL	SEND_DAT
+	
+	LACL	0XFF
+	CALL	SEND_DAT
+	
+	LACL	0X82		;新旧来电同步(3bytes)
+	CALL	SEND_DAT
+	LACK	0
+	CALL	SEND_DAT
+	LACK	0
+	CALL	SET_TELGROUP
+	CALL	GET_TELT	;来电总数同步
+	CALL	SEND_DAT
+	
+	LACL	0XFF
+	CALL	SEND_DAT
+	
+	LACL	0X9E
+	CALL	SEND_DAT
+	LACK	6
+	CALL	SEND_DAT
+	LACL	0XFF
+	CALL	SEND_DAT
+
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+	
+	RET
+;-------------------------------------------------------------------------------
+DAA_ROM_MOR:
+	LIPK    6
+.if	DebugAD1	;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				; MIC ->pre-pga -> ad1-pga -> SW4 -> LOUT
+				; LIN -> ad2-pga -> ADC2
+	OUTK	(1<<4)|1,SWITCH
+	OUTL	(0x17<<5),LOUTSPK
+	OUTL	(CMICROM_MOR<<8)|(CAD0ROM_MOR<<4)|(CAD1ROM_MOR),AGC
+	OUTK	0,ANAPWR	;all power on
+
+	LACL	0XD180		;Note only for room-monitor
+	CALL	DAM_BIOSFUNC
+
+.else	;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				; MIC ->pre-pga -> ad1-pga -> SW4 -> LOUT
+				; LIN -> ad2-pga -> ADC2
+	OUTK	(1<<4)|(1<<1)|1,SWITCH
+		;OUTK	(1<<4)|1,SWITCH
+	OUTL	(0x17<<5),LOUTSPK
+		;LOPVOL
+	;OUTL	0X0F50,AGC
+	OUTL	(0XF<<8)|(0XB<<4),AGC
+	
+	OUTK	0,ANAPWR	;all power on
+.endif	;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        RET
+
+;-------------------------------------------------------------------------------;----------------------------------------------------------------------------
+;       Function : RMTFUNC_CHK
+;       Password check
+;	Input  : ACCH = VALUE(DTMF_VAL)
+;       Output : ACCH = last four DTMF value
+;-------------------------------------------------------------------------------
+RMTFUNC_CHK:
+	ANDK	0X0F
+        SAH	SYSTMP0
+        
+        LAC     PSWORD_TMP
+        SFL	4
+        ANDL	0XFFF0
+	OR	SYSTMP0
+        SAH     PSWORD_TMP	;PSWORD_TMP save the last four input digit string
+
+	RET
+;===============================================================================
+.if	0	;2012-4-19 19:53 change it into spanish base v13. and get_language function will return 0 only, no english or german selector
+VP_MENU_QUEUE:	;for English
+;
+.DATA	46	;长度	
+	;press	1	and	mailbox	number	t0	play	new	messages
+.DATA	46	1	60	62	63	47	48	40	42
+	;press	2	and	mailbox	number	t0	play	all	messages
+.DATA	46	2	60	62	63	47	48	49	42
+	;press	3	and	mailbox	number	t0	erase	messages
+.DATA	46	3	60	62	63	47	50	42
+	;press	7				t0	record	announcement
+.DATA	46	7				47	51	52
+	;press	8				t0	activat_room_monitor
+.DATA	46	8				47	54
+	;press	9				t0	turn_on_or_off
+.DATA	46	9				47	53
+	;press	asteris	for_menu
+.DATA	46	55	57
+	;press	asterisk			to	release_line
+.DATA	46	56				47	58
+;-------------------------------------------------------------------------------
+.else	;below is 
+VP_MENU_QUEUE:	;for spanish
+.DATA	8	;长度	
+;
+.DATA	65	66	67	68	69	70	71	72
+.endif
+;-------------------------------------------------------------------------------
+VP_GMENU_QUEUE:		;for German
+;
+.DATA	8	;长度	
+;
+.DATA	133	134	135	136	137	138	139	140
+;-------------------------------------------------------------------------------
+.INCLUDE l_ply.asm
+;-------------------------------------------------------------------------------
+.END
+
+	

@@ -1,0 +1,586 @@
+.LIST
+LOCAL_PRO:
+	LAC	PRO_VAR
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PRO0		;(F0)0 = idle
+	SBHK	1
+	BS	ACZ,LOCAL_PROPLY	;(F1) = play memo/icm
+	SBHK	1
+	BS	ACZ,LOCAL_PROREC	;(F2) = record/play Memo
+	SBHK	1
+	BS	ACZ,LOCAL_PROOGM	;(F3) = record/play OGM
+	SBHK	1
+	BS	ACZ,LOCAL_PROCID	;(F4) = CID decode and write into flash
+	SBHK	1
+	BS	ACZ,LOCAL_PROTWR	;(F5) = two way record
+	SBHK	1
+	BS	ACZ,LOCAL_PROPHO	;(F6) = for VOP test
+	SBHK	1
+	BS	ACZ,LOCAL_PROTXT	;(F7) = for test mode
+	
+	RET
+;-------------------------------------------------事件响应区
+LOCAL_PRO0:
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0X0F
+	BS	ACZ,LOCAL_PRO0_0	;0 = idel
+	SBHK	1
+	BS	ACZ,LOCAL_PROMIDI	;1 = reserved
+	SBHK	1
+	BS	ACZ,LOCAL_PROTEL	;2 = Find TEL(CID/PhoneBook/Redial/M1/M2/M3)
+
+	RET
+;-------------------------------------------------	
+LOCAL_PRO0_0:	
+	LAC	MSG
+	XORL	CMSG_INIT		;INITIAL
+	BS	ACZ,LOCAL_PRO0_INIT
+;LOCAL_PRO0_0_1:
+	LAC	MSG
+	XORL	CMSG_PLY		;PLAY MESSAGE
+	BS	ACZ,LOCAL_PRO0_PLYMSG
+;LOCAL_PRO0_0_2:
+	LAC	MSG
+	XORL	COLD_ERAS
+	BS	ACZ,LOCAL_PRO0_REAALL
+;LOCAL_PRO0_0_3:
+;LOCAL_PRO0_0_4:
+	LAC	MSG
+	XORL	CREC_MEMO		;Record memo
+	BS	ACZ,LOCAL_PRO0_RECMSG
+;LOCAL_PRO0_0_5:
+	LAC	MSG
+	XORL	CPLY_OGM		;play OGM
+	BS	ACZ,LOCAL_PRO0_PLYOGM
+	LAC	MSG
+	XORL	CREC_OGM		;record OGM
+	BS	ACZ,LOCAL_PRO0_RECOGM
+;LOCAL_PRO0_0_6:
+	LAC	MSG
+	XORL	CREC_2WAY		;record OGM
+	BS	ACZ,LOCAL_PRO0_RECTWR
+;LOCAL_PRO0_0_7:
+	LAC	MSG
+	XORL	CVOL_INC		;VOL+
+	BS	ACZ,LOCAL_PRO0_VOLA
+;LOCAL_PRO0_0_8:
+	LAC	MSG
+	XORL	CVOL_DEC		;VOL-
+	BS	ACZ,LOCAL_PRO0_VOLS
+;LOCAL_PRO0_0_9:
+	LAC	MSG
+	XORL	CFSK_CID		;FSK-CID
+	BS	ACZ,LOCAL_PRO0_FSKCID
+	LAC	MSG
+	XORL	CDTMF_CID		;DTMF-CID
+	BS	ACZ,LOCAL_PRO0_DTMFCID
+;LOCAL_PRO0_0_10:
+	LAC	MSG
+	XORL	CMIDI_VOP		;Midi VOP
+	BS	ACZ,LOCAL_PRO0_MIDIVOP
+	LAC	MSG
+	XORL	CMIDI_VOL		;Midi Volume
+	BS	ACZ,LOCAL_PRO0_MIDIVOL
+;LOCAL_PRO0_0_11:
+	LAC	MSG
+	XORL	CMSG_TMR		;CMSG_TMR
+	BS	ACZ,LOCAL_PRO0_TMR
+;LOCAL_PRO0_0_12:
+	LAC	MSG
+	XORL	CVP_STOP		;VP_STOP
+	BS	ACZ,LOCAL_PRO0_VPSTOP
+;LOCAL_PRO0_0_13:
+	LAC	MSG
+	XORL	CPHONE_ON
+	BS	ACZ,LOCAL_PRO0_PHONE
+	LAC	MSG
+	XORL	CHOOK_OFF
+	BS	ACZ,LOCAL_PRO0_PHONE	;摘机
+;LOCAL_PRO0_0_14:
+	LAC	MSG
+	XORL	CTMODE_IN
+	BS	ACZ,LOCAL_PRO0_TMODE
+;LOCAL_PRO0_0_15:
+	LAC	MSG
+	XORL	CFIND_MISSCID
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CFIND_ANSWCID
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CFIND_DTEL
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CFIND_PBOOK
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+
+	LAC	MSG
+	XORL	CDEL_MISSCID
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CDEL_ANSWCID
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CDEL_DTEL
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CDEL_PBOOK
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+
+	LAC	MSG
+	XORL	CFIND_NUM
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CSAVE_PBOOK
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CSAVE_DTEL
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+;---
+	LAC	MSG
+	XORL	CDAM_UPDATE
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+	LAC	MSG
+	XORL	CMSG_FMAT
+	BS	ACZ,LOCAL_PROTEL_FUNCTION
+
+;LOCAL_PRO0_0_16:
+	LAC	MSG
+	XORL	CMSG_BEEP
+	BS	ACZ,LOCAL_PROTEL_BEEP
+	LAC	MSG
+	XORL	CMSG_BBEEP
+	BS	ACZ,LOCAL_PROTEL_BBEEP
+	LAC	MSG
+	XORL	CMSG_LBEEP
+	BS	ACZ,LOCAL_PROTEL_LBEEP
+;LOCAL_PRO0_0_17:	
+	LAC	MSG
+	XORL	CRING_IN
+	BS	ACZ,LOCAL_PROTEL_RINGIN
+	LAC	MSG
+	XORL	CRING_FAIL
+	BS	ACZ,LOCAL_PROTEL_RINGFAIL
+;LOCAL_PRO0_0_18:
+	
+;LOCAL_PRO0_0_19:
+	LAC	MSG
+	XORL	CMSG_STOP
+	BS	ACZ,LOCAL_PRO0_STOP
+
+	RET
+
+;-------------------------------------------------------------------------------
+LOCAL_PROTEL_RINGIN_SECOND:
+	LACL	CMIDI_VOP
+	SAH	MSG
+	LACK	1
+	SAH	MIDI_ID
+;---	
+	LACK	0
+	SAH	PRO_VAR1
+	LACL	1000
+	CALL	SET_TIMER
+
+	;BS	B1,LOCAL_PRO0_FSKCID
+LOCAL_PRO0_DTMFCID:
+LOCAL_PRO0_FSKCID:
+;-!!!
+	CALL	LOAD_SYSF_TEL
+;-!!!	
+	LACK	0X004
+	SAH	PRO_VAR
+	
+	LAC	MSG
+	CALL	STOR_MSG
+
+	RET
+;---------------------------------------
+LOCAL_PRO0_MIDIVOP:
+	LAC	MIDI_ID		;(1..12)
+	SBHK	1
+	BS	SGN,LOCAL_PRO0_MIDIVOP_END	;Less than 1
+	SBHK	12
+	BZ	SGN,LOCAL_PRO0_MIDIVOP_END	;More than 12
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_MIDI_SPK
+	LAC	MIDI_ID		;(1..12)
+	ADHK	0X21
+	CALL	MIDI_WCOM	;(0X22..0X2D)
+	
+	CALL	LINE_START
+LOCAL_PRO0_MIDIVOP_END:
+	RET
+;---------------------------------------
+LOCAL_PRO0_MIDIVOL:
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LAC	MIDI_ID
+	ANDK	0X07
+	ADHL	MIDIVOL_TAB
+	CALL	GetOneConst
+	SAH	CODECREG2
+	OUT	CODECREG2,LOUTSPK
+	ADHK	0
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	RET
+;---------------------------------------
+LOCAL_PRO0_INIT:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	;CALL	GC_CHK
+
+	;CALL	VPMSG_CHK
+	LACL	500
+	CALL	SET_TIMER
+	LACK	0
+	SAH	PRO_VAR1
+	
+	CALL	LINE_START
+;---
+	RET
+;---------------------------------------
+LOCAL_PROTEL_FUNCTION:
+;-------
+	LACL	FlashLoc_H_f_findtel
+	ADLL	FlashLoc_L_f_findtel
+	CALL	SetFlashStartAddress
+	NOP	
+	LACL	RamLoc_f_findtel
+	ADLL	CodeSize_f_findtel
+	CALL	LoadHostCode
+;-------
+	LACK	0X020
+	SAH	PRO_VAR
+	
+	LAC	MSG
+	CALL	STOR_MSG
+	
+	RET
+;---------------------------------------
+LOCAL_PROTEL_BEEP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+
+	CALL	CLR_TIMER
+	
+	RET
+;---------------------------------------
+LOCAL_PROTEL_BBEEP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BBEEP
+
+	CALL	CLR_TIMER
+
+	RET
+;---------------------------------------
+LOCAL_PROTEL_LBEEP:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	LBEEP
+
+	CALL	CLR_TIMER
+
+	RET
+;---------------------------------------
+
+;---------------------------------------
+LOCAL_PROTEL_RINGIN:
+	LACK	0X19
+	CALL	SEND_DAT
+	LACK	0X19
+	CALL	SEND_DAT
+
+	LAC	RING_ID
+	SFR	4
+	ANDK	0X0F
+	SBHK	2
+	BS	ACZ,LOCAL_PROTEL_RINGIN_SECOND	;第二次铃流
+
+	RET
+
+;---------------------------------------
+LOCAL_PROTEL_RINGFAIL:		;此为待机状态,只为告诉MCU铃流结束
+				;由于二声铃流才会MIDI响铃,故而不必在此关MIDI
+;---Reset Flag(new-CID)
+	LAC	ANN_FG
+	ANDL	~(1<<2)
+	SAH	ANN_FG
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM		;Tell MCU
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	BS	B1,LOCAL_PRO0_STOP
+;---------------------------------------
+LOCAL_PRO0_VPSTOP:
+	BS	B1,LOCAL_PRO0_INIT
+;---------------------------------------
+LOCAL_PRO0_TMODE:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+
+	LACK	0x0007
+	SAH	PRO_VAR
+
+	CALL	LOAD_TETF_VP
+	
+	RET
+
+;-------------------------------------------------------------------------------
+LOCAL_PRO0_REAALL:
+	CALL	INIT_DAM_FUNC
+
+	CALL	VPMSG_CHK
+;---	
+.if	0
+;------del all(old and new)
+	LAC	MSG_T
+	CALL	VPMSG_DELALL
+	CALL	REAL_DEL
+
+.else
+;------del old only
+	CALL	VPMSG_DELOLD
+.endif	
+	CALL	GC_CHK
+;---
+	CALL	VPMSG_CHK
+	CALL	DAA_SPK
+	CALL	BEEP
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	VPMSG_CHK
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACK	0X0010
+	SAH	PRO_VAR
+	
+	RET
+LOCAL_PRO0_VOLS:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+	CALL	CLR_TIMER
+	
+	LAC	DAM_ATT
+        ANDL	0X07
+        SBHK	1		;下限
+        BZ	SGN,LOCAL_PROX_VOLS
+
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BBBEEP	
+LOCAL_PROX_VOLS:
+	LACL	CMSG_VOLS
+	CALL	STOR_MSG
+	
+	RET
+LOCAL_PRO0_VOLA:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BEEP
+	CALL	CLR_TIMER
+	
+	LAC	DAM_ATT
+        ANDL	0X07
+        SBHK	7		;上限
+        BS	SGN,LOCAL_PROX_VOLA
+
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BBBEEP
+LOCAL_PROX_VOLA:
+	LACL	CMSG_VOLA
+	CALL	STOR_MSG
+	
+	RET
+
+;---------------------------------------
+LOCAL_PRO0_RECTWR:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_LIN_SPK
+	CALL	LBEEP
+	
+	CALL	VPMSG_CHK
+
+	BIT	ANN_FG,13	;check memoful?
+	BS	TB,LOCAL_PRO0_RECMSG_MFUL
+	
+	CALL	SET_COMPS
+	LACK	0X0005
+	SAH	PRO_VAR
+
+;-------
+	LACL	FlashLoc_H_f_localtwr
+	ADLL	FlashLoc_L_f_localtwr
+	CALL	SetFlashStartAddress
+	NOP	
+	LACL	RamLoc_f_localtwr
+	ADLL	CodeSize_f_localtwr
+	CALL	LoadHostCode
+;-------
+	RET
+;---------------------------------------
+LOCAL_PRO0_RECMSG:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	LBEEP
+	
+	CALL	VPMSG_CHK
+
+	BIT	ANN_FG,13	;check memoful?
+	BS	TB,LOCAL_PRO0_RECMSG_MFUL
+	
+	CALL	SET_COMPS
+
+	LACK	0X0002
+	SAH	PRO_VAR
+
+	CALL	LOAD_LOCF_VR
+
+	RET
+LOCAL_PRO0_RECMSG_MFUL:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	BBBEEP
+	
+	LACK	0X0
+	SAH	PRO_VAR
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	RET
+;---------------------------------------
+LOCAL_PRO0_RECOGM:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	CALL	LBEEP
+
+	CALL	SET_COMPS
+;---delete the old OGM fisrt------------
+	CALL	OGM_TEMP
+	LAC	MSG_ID
+	CALL	VPMSG_DEL
+	CALL	GC_CHK
+	
+	CALL	VPMSG_CHK	;check mfull
+
+	LACK	0X0003
+	SAH	PRO_VAR
+
+	BIT	ANN_FG,13	;check memoful?
+	BS	TB,LOCAL_PRO0_RECMSG_MFUL
+	
+	CALL	LOAD_LOCF_VR
+
+	RET
+;---------------------------------------
+LOCAL_PRO0_PLYOGM:		;准备播放OGM
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	LACK	0X0023
+	SAH	PRO_VAR		;进入播放OGM子功能
+	CALL	CLR_TIMER
+	CALL	LOAD_LOCF_VR
+
+	CALL	OGM_TEMP
+
+	LAC	MSG_ID
+	ORL	0XFE00
+	CALL	STOR_VP
+
+	CALL	OGM_TEMP
+	BZ	ACZ,MAIN_PRO0_PLAY_OGM1
+
+	CALL	INIT_DAM_FUNC
+	;CALL	VP_DefOGM
+	LACL	0X0032		;pause 400ms
+	CALL	STOR_VP
+
+MAIN_PRO0_PLAY_OGM1:
+
+	RET
+;---------------------------------------
+LOCAL_PRO0_TMR:
+	;CALL	DAA_OFF
+
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+
+	RET
+
+;---------------------------------------
+LOCAL_PRO0_PLYMSG:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_SPK
+	LACK	0X005
+	CALL	STOR_VP
+
+	CALL	VPMSG_CHK		;进入播放子功能
+	CALL	CLR_TIMER
+	LACK	0X0001
+	SAH	PRO_VAR	
+
+	LACK	0
+	SAH	MSG_ID
+;--	
+	CALL	LOAD_LOCF_VP
+
+	BIT	ANN_FG,12
+	BS	TB,LOCAL_PRO0_PLAY_NEW
+	BIT	ANN_FG,14
+	BS	TB,LOCAL_PRO0_PLAY_OLD
+;LOCAL_PRO0_PLYMSG_NO:
+
+	CALL	BBBEEP
+	LACL	0X0201
+	SAH	PRO_VAR	
+	
+	RET
+;-------play new messages
+LOCAL_PRO0_PLAY_NEW:
+LOCAL_PRO0_PLAY_OLD:
+	RET
+
+;-------------------------------------------------------------------------------
+LOCAL_PRO0_PHONE:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LAC	MSG
+	CALL	STOR_MSG
+	LACK	0X006
+	SAH	PRO_VAR
+;-------
+	LACL	FlashLoc_H_f_phone
+	ADLL	FlashLoc_L_f_phone
+	CALL	SetFlashStartAddress
+	NOP	
+	LACL	RamLoc_f_phone
+	ADLL	CodeSize_f_phone
+	CALL	LoadHostCode
+;-------
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PRO0_STOP:		;一般只是为了停止MIDI
+	CALL	INIT_DAM_FUNC
+	CALL	MIDI_STOP
+	CALL	DAA_OFF
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!	
+	;CALL	VPMSG_CHK
+	;CALL	SEND_MSGNUM
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+	
+	RET
+;-------------------------------------------------------------------------------
+LOCAL_PROMIDI:
+	RET
+;-------------------------------------------------------------------------------
+	
+.END

@@ -1,0 +1,883 @@
+ORG	(2<<10)
+;-------------------------------------------------------------------------------
+;	Function : DGT_HEX
+;
+;	Transform a BCD value to binary value
+;	Input  : ACCH = the BCD value
+;	Output : ACCH = the binary value
+;	Variable : TEMP1,TEMP2
+;-------------------------------------------------------------------------------
+DGT_HEX:
+	MOV	TEMP1,A	
+
+	AND	A,@0X0F
+	MOV	TEMP2,A		;LOW(3..0)
+
+	SWAPA	TEMP1
+	AND	A,@0X0F
+	MOV	TEMP1,A		;HIGH(3..0)
+DGT_HEX_LOOP:
+	MOV	A,TEMP1
+	JPZ	DGT_HEX_END
+	
+	MOV	A,@10
+	ADD	TEMP2,A
+
+	DEC	TEMP1
+	JMP	DGT_HEX_LOOP
+DGT_HEX_END:
+	MOV	A,TEMP2
+
+        RET
+;-------------------------------------------------------------------------------
+;       Function : HEX_DGT
+;	Transform a binary value to a BCD value
+;
+;	Input  : ACCH = the binary value
+;	Output : ACCH = the BCD value
+;	Variable : TEMP1,TEMP2
+;-------------------------------------------------------------------------------
+HEX_DGT:
+	MOV	TEMP1,A
+	CLR	TEMP2
+HEX_DGT_LOOP:
+	MOV	A,@10
+	SUB	A,TEMP1
+	JPNC	HEX_DGT_END
+	MOV	TEMP1,A
+
+	INC	TEMP2
+	JMP	HEX_DGT_LOOP
+HEX_DGT_END:
+	SWAPA	TEMP2
+	AND	A,@0X0F0
+	ADD	A,TEMP1
+
+	RET
+;-------------------------------------------------------------------------------
+;	Function : VALUE_INC	(ACCH+1==>ACCH)
+;	input : 	ACC
+;	output: 	ACC
+;	minvalue:	TEMP1
+;	maxvalue:	TEMP2
+;-------------------------------------------------------------------------------
+VALUE_INC:
+	MOV	TEMP0,A
+	INC	TEMP0
+	
+	MOV	A,TEMP0
+VALUE_INC1:
+	SUB	A,TEMP2
+	JPNC	VALUE_INC3	;比最大的还大
+	
+	MOV	A,TEMP1
+	SUB	A,TEMP0
+	JPNC	VALUE_INC3	;比最小的还小
+
+	MOV	A,TEMP0
+   
+        RET
+VALUE_INC3:
+	MOV	A,TEMP1
+	RET
+;-------------------------------------------------------------------
+;	Function : VALUE_DEC(ACCH-1==>ACCH)
+;	
+;	input : 	ACC
+;	output: 	ACC
+;	minvalue:	TEMP1
+;	maxvalue:	TEMP2
+;-------------------------------------------------------------------        
+VALUE_DEC:
+	MOV	TEMP0,A
+	DEC	TEMP0
+
+	MOV	A,TEMP0
+VALUE_DEC1:
+	SUB	A,TEMP2
+	JPNC	VALUE_DEC3	;比最大的还大
+	
+	MOV	A,TEMP1
+	SUB	A,TEMP0
+	JPNC	VALUE_DEC3	;比最小的还小
+	
+	MOV	A,TEMP0
+	
+        RET
+VALUE_DEC3:
+	MOV	A,TEMP2
+
+	RET
+;-------------------------------------------------------------------------------
+;	LINE_START
+;	input : no
+;	output: no
+;
+;	Nothing to do with BANK
+;-------------------------------------------------------------------------------
+LINE_START:
+	CLR	EVENT
+	BS	EVENT,4
+	
+	CLR	TEMP0
+	MOV	TEMP1,@0X50
+	LCALL	STOR_COMMAND
+
+	RET
+;-------------------------------------------------------------------------------
+;	REC_START
+;	input : no
+;	output: no
+;
+;	Nothing to do with BANK
+;-------------------------------------------------------------------------------
+RECORD_START:
+	CLR	EVENT
+	BS	EVENT,7
+	
+	CLR	TEMP0
+	MOV	TEMP1,@0X10
+	LCALL	STOR_COMMAND
+
+	RET
+;-------------------------------------------------------------------------------
+;	PHONE_START
+;	input : no
+;	output: no
+;
+;	Nothing to do with BANK
+;-------------------------------------------------------------------------------
+;PHONE_START:
+;	CLR	EVENT
+;	BS	EVENT,3
+		
+;	CLR	TEMP0
+;	MOV	TEMP1,@0XC0
+;	LCALL	STOR_COMMAND
+
+;	RET
+;-------------------------------------------------------------------------------
+;	SETLCDCONTRAST	设定LCD对比度
+;-------------------------------------------------------------------------------
+SETLCDCONTRAST:
+IF	OTP == 1
+	;ADD	A,@(256-1)
+ELSE
+	ADD	A,@(256-1)
+ENDIF
+	MOV	TEMP0,A
+	RLC	TEMP0
+	RLC	TEMP0
+	AND	TEMP0,@(0x1c)
+	DISI
+	IOR	_IOCE
+	AND	A,@(0xe3)
+	OR	A,TEMP0
+	IOW	_IOCE
+	
+	RETI
+
+;-------------------------------------------------------------------------------
+;       Function : MOVE_DATA
+;	move current CID-block data from offset_s to offset_d
+;	count
+;	Input  : OFFSET_S/OFFSET_D/COUNT
+;	Output : no
+;
+;
+;适合OFFSET_S > OFFSET_D,和OFFSET_S+COUNT <= OFFSET_D
+;-------------------------------------------------------------------------------
+MOVE_DATA:		;当前CID-RAM之间数据转移,OFFSET_S-->OFFSET_D,COUNT是多少字节
+	MOV	A,OFFSET_D
+	SUB	A,OFFSET_S
+	JPNC	MOVE_1DATA
+MOVE_DATA_LOOP:			;offset_s > offset_d
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	INC	OFFSET_S
+	INC	OFFSET_D
+	DEC	COUNT
+	
+	MOV	A,COUNT
+	JPNZ	MOVE_DATA_LOOP
+	
+	RET
+;-------
+MOVE_1DATA:		;offset_s < offset_d
+	MOV	A,@1
+	SUB	A,COUNT
+	
+	ADD	OFFSET_S,A
+	ADD	OFFSET_D,A
+MOVE_1DATA_LOOP:
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	DEC	OFFSET_S
+	DEC	OFFSET_D
+	DEC	COUNT
+
+	MOV	A,COUNT
+	JPNZ	MOVE_1DATA_LOOP
+
+	RET
+;-------------------------------------------------------------------------------
+;	STOR_DATA
+;	将当前RC为起始地址,长度为count的区域填充数据
+;	input : ACC	= 填充值
+;		_RC	= 地址
+;		count	= 长度
+;-------------------------------------------------------------------------------
+STOR_DATA:
+	MOV	TEMP0,A
+STOR_DATA_LOOP:
+	MOV	A,TEMP0
+	MOV	_RD,A
+	INC	_RC
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	STOR_DATA_LOOP
+
+	RET
+;-------------------------------------------------------------------------------
+;	COPY_DATA
+;	将(BASE_ADDR-7..4,OFFSET_S)为起始地址,长度为count的数据
+;	复制到(BASE_ADDR-3..0,OFFSET_D)为起始地址的区域
+;-------------------------------------------------------------------------------
+COPY_DATA:
+;---	
+	MOV	A,COUNT
+	JPZ	COPY_DATA_END
+COPY_DATA_LOOP:
+;---source block
+	SWAPA	BASE_ADDR
+	AND	A,@0X0F
+	CALL	SET_CIDBANK
+;---source offset
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+;---get data
+	MOV	A,_RD
+	MOV	TEMP0,A
+;---destation block	
+	MOV	A,BASE_ADDR
+	AND	A,@0X0F
+	CALL	SET_CIDBANK
+;---destation offset
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+;---stor data
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	INC	OFFSET_S
+	INC	OFFSET_D
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	COPY_DATA_LOOP
+
+	SWAPA	BASE_ADDR
+	AND	A,@0X0F
+	CALL	SET_CIDBANK		;Comeback source block
+;---	
+COPY_DATA_END:
+	
+	RET
+;-------------------------------------------------------------------------------
+SET_CIDBANK:
+	MOV	TEMP3,A
+	SUB	A,@10
+	JPC	SET_CIDBANK_EXEC
+	
+	RET
+SET_CIDBANK_EXEC:
+	BC	_STATUS,C
+	
+	RLC	TEMP3
+
+	IOR	_IOCA
+	AND	A,@0XE1
+	ADD	A,TEMP3
+	ADD	A,@(VALUE_IOCA)
+	IOW	_IOCA
+
+	RET
+;-------------------------------------------------------------------------------
+UPDATE_DATETIME:		;Note: this subroutine can't use B1_MON_REG/B1_DAY_REG/B1_HOUR_REG/B1_MIN_REG,because RTC-DISP update aways work
+	BANK	0
+;-the first line
+;	PAGE	#(VGA)
+;	MOV	A,@(STYLE_LEFT+STYLE_TOBCD)	;!!!
+;	CALL	VGANUM1
+;
+;	MOV	A,B0_HOUR_REG
+;	CALL	VGANUM1
+;	MOV	A,B0_MIN_REG
+;	CALL	VGANUM1
+;	MOV	A,B0_DAY_REG
+;	CALL	VGANUM1
+;	MOV	A,B0_MON_REG
+;	CALL	VGANUM1
+;
+;	MOV	A,@(CH_END)
+;	CALL	VGANUM1
+;	CALL	VGADRAWNUM1
+;	PAGE	#($)
+
+
+	BLOCK	0
+;-Hour
+	MOV	_RC,@(LCD_1STLINE)
+	CLR	_RD
+	MOV	A,B0_HOUR_REG
+	LCALL	HEX_DGT
+	MOV	TEMP0,A
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	JPZ	UPDATE_DATETIME_1	;如果为0就不显示
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+UPDATE_DATETIME_1:
+	INC	_RC
+	
+	MOV	A,TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+	INC	_RC
+;-Minute
+	PAGE	#(HEX_DGT)	;!!!!
+	MOV	A,B0_MIN_REG
+	CALL	HEX_DGT
+	MOV	TEMP0,A
+
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+	INC	_RC
+	
+	MOV	A,TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+	INC	_RC
+;-Day
+	MOV	A,B0_DAY_REG
+	CALL	HEX_DGT
+	MOV	TEMP0,A
+	
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+	INC	_RC
+	
+	MOV	A,TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+	INC	_RC
+;-Month
+	INC	_RC
+	CLR	_RD	;!!!先清空低位
+	DEC	_RC
+
+	MOV	A,B0_MON_REG
+	CALL	HEX_DGT
+	PAGE	#($)	;!!!!
+	MOV	TEMP0,A
+
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	JPZ	UPDATE_DATETIME_2	;如果为0就不显示而且在当前位置显示低位数
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+	INC	_RC
+UPDATE_DATETIME_2:
+
+	MOV	A,TEMP0
+	AND	A,@0X0F
+	ADD	A,@CNumDelta		;转换成机内码	
+	MOV	_RD,A
+
+	RET
+;-------------------------------------------------------------------------------
+;	input : TEMP0 - the value
+;		TEMP1:	length
+;		_RC:	start address
+;	output:
+;-------------------------------------------------------------------------------
+STORCIDRAM:
+	MOV	A,TEMP1
+	JPZ	STORCIDRAM_RET
+	MOV	_RD,TEMP0
+	INC	_RC
+	DEC	TEMP1
+	JMP	STORCIDRAM
+STORCIDRAM_RET:
+	RET
+
+;-------------------------------------------------------------------------------
+;	TEL_GC_CHK
+;	input : no
+;	output: no
+;-------------------------------------------------------------------------------
+TEL_GC_CHK:
+
+	MOV	TEMP0,@0X04
+	MOV	TEMP1,@0XE4
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	MOV	A,TEMP0
+	SUB	A,@32
+	JPC	TEL_GC_CHK_END	;No need GC 
+;---DO TEL-GC	
+	MOV	TEMP4,@1
+TEL_GC_CHK_DOING:	
+	MOV	TEMP0,@0X05
+	MOV	TEMP1,@0XE4
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	MOV	A,TEMP0
+	JPZ	TEL_GC_CHK_NEXTSTEP
+	
+	MOV	TEMP0,@0X07
+	MOV	TEMP1,@0XE4
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	
+	MOV	A,TEMP0
+	JPZ	TEL_GC_CHK_DOING
+
+TEL_GC_CHK_DOING_1:	
+	MOV	TEMP0,@0X05
+	MOV	TEMP1,@0X30
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	MOV	A,TEMP0
+	JPZ	TEL_GC_CHK_DOING
+	
+
+	MOV	TEMP0,@0X07
+	MOV	TEMP1,@0X30
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	JMP	TEL_GC_CHK_DOING_1	
+
+;---DO TEL-GC end then VP-GC
+TEL_GC_CHK_NEXTSTEP:
+	JMP	DAM_GC_CHK
+TEL_GC_CHK_END:
+	RET	
+;-------------------------------------------------------------------------------
+;	GC_CHK
+;	input : no
+;	output: no
+;-------------------------------------------------------------------------------
+GC_CHK:
+	CLR	TEMP4		;declear flag
+	
+DAM_GC_CHK:
+	MOV	TEMP0,@0X05
+	MOV	TEMP1,@0X30
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	MOV	A,TEMP0
+	JPZ	GC_CHK_END
+
+	MOV	TEMP0,@0X07
+	MOV	TEMP1,@0X30
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+	JMP	DAM_GC_CHK
+	
+GC_CHK_END:
+	MOV	A,TEMP4		;check declear flag
+	JPZ	SET_DECLTEL_END	
+SET_DECLTEL:	
+	MOV	TEMP0,@0XA0
+	MOV	TEMP1,@0X5F
+	MOV	TEMP2,@CTEL_MNUM
+	MOV	TEMP3,@0
+	
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND4B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	
+SET_DECLTEL_END:
+		
+	RET
+;-------------------------------------------------------------------------------
+OGM_SELECT:
+	JMP	OGM_STATUS
+;-------------------------------------------------------------------------------
+;	OGM_STATUS
+;	input : acc = the OGM_ID
+;	output: acc = the MSG_ID with current mbox type-2
+;-------------------------------------------------------------------------------
+OGM_STATUS:
+;---set OGM_ID = mbox-id
+	MOV	TEMP0,A
+	MOV	TEMP1,@0XD0
+
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	;PAGE	#($)	
+;---OGM	type
+	MOV	TEMP0,@0x02
+	MOV	TEMP1,@0XD2
+	;PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	;PAGE	#($)
+;---Get the number of total message with current mbox current type
+	MOV	TEMP0,@0x00
+	MOV	TEMP1,@0X30
+	;PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND	
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+		
+	MOV	A,TEMP0
+
+	RET
+;-------------------------------------------------------------------------------
+;	VPMSG_CHK
+;	input : 
+;	output: B1_MSG_N/B1_MSG_T/DAM_FLAG(7,6,5)
+;
+;-------------------------------------------------------------------------------
+VPMSG_CHK:
+;---set mbox-id=1
+	MOV	TEMP0,@0x01
+	MOV	TEMP1,@0XD0
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	;PAGE	#($)
+;---ICM	type
+	CLR	TEMP0
+	MOV	TEMP1,@0XD2
+	;PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	;PAGE	#($)
+;---Get the number of total message with  mbox-1 current type
+	MOV	TEMP0,@0x00
+	MOV	TEMP1,@0X30
+	;PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND	
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	;PAGE	#($)
+	BANK	1
+	MOV	B1_MSG_T,TEMP0
+;---Get the number of new message with mbox-1 current type
+	MOV	TEMP0,@0x01
+	MOV	TEMP1,@0X30
+	;PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND	
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	;PAGE	#($)
+	MOV	B1_MSG_N,TEMP0
+;---Get the available time in Flash
+	MOV	TEMP0,@0x03
+	MOV	TEMP1,@0X30
+	;PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND	
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+;---------------------------------------
+VPMSG_CHK_0:
+	MOV	A,TEMP1
+	JPNZ	VPMSG_CHK_0_1
+	MOV	A,TEMP0
+	SUB	A,@3
+	JPNC	VPMSG_CHK_0_1
+
+	SET_FULL_FLAG
+	
+	JMP	VPMSG_CHK_0_2
+VPMSG_CHK_0_1:
+	
+	RESET_FULL_FLAG
+VPMSG_CHK_0_2:		
+;---------------------------------------
+VPMSG_CHK_1:
+	MOV	A,B1_MSG_N
+	JPZ	VPMSG_CHK_1_1
+	
+	SET_NEWVP_FLAG
+	JMP	VPMSG_CHK_1_2
+VPMSG_CHK_1_1:
+	RESET_NEWVP_FLAG
+VPMSG_CHK_1_2:	
+;---------------------------------------
+VPMSG_CHK_2:
+	MOV	A,B1_MSG_T
+	JPZ	VPMSG_CHK_2_1
+	SET_VPEXIST_FLAG
+	
+	SUB	A,@59
+	JPC	VPMSG_CHK_2_2
+	SET_FULL_FLAG
+	JMP	VPMSG_CHK_2_2
+VPMSG_CHK_2_1:
+	RESET_VPEXIST_FLAG
+VPMSG_CHK_2_2:	
+;---------------------------------------
+	RET
+
+;-------------------------------------------------------------------------------
+;	ANNOUNCE_NUM
+;	input : acc = the NUM
+;	output: 
+;-------------------------------------------------------------------------------
+ANNOUNCE_NUM:
+	
+	MOV	TEMP1,A
+	SUB	A,@20
+	JPC	ANNOUNCE_NUM_LESS21
+	
+	MOV	A,TEMP1
+	CALL	HEX_DGT
+	MOV	TEMP1,A
+	MOV	TEMP2,A
+	
+	AND	A,@0X0F
+	JPZ	ANNOUNCE_NUM_2
+	
+ANNOUNCE_NUM_1:	
+	SWAPA	TEMP1		;十位
+	AND	A,@0X0F
+	ADD	A,@23
+	LCALL	VOP_STOR_VP
+	
+	MOV	A,TEMP2		;个位
+	AND	A,@0X0F
+	ADD	A,@1
+	LCALL	VOP_STOR_VP
+	
+	RET
+ANNOUNCE_NUM_2:			;个位为0
+	SWAPA	TEMP1
+	ADD	A,@18
+	LCALL	VOP_STOR_VP
+
+	RET	
+ANNOUNCE_NUM_LESS21:		;0..20
+	INCA	TEMP1
+	LCALL	VOP_STOR_VP
+
+	RET
+
+;-------------------------------------------------------------------------------
+;	Function : PSWORD_CHK
+;	Password check
+;	Input  : ACCH = VALUE(DTMF_VAL)
+;	Output : _STATUS.C = 1/0 - password in ok/Not
+;
+;-------------------------------------------------------------------------------
+PSWORD_CHK:
+	MOV	TEMP0,A
+	SUB	A,@NUM_0
+/*
+	JPC	PSWORD_CHK_0
+	MOV	TEMP0,A
+	SUB	A,@NUM_A
+	JPC	
+PSWORD_CHK_0:
+	
+PSWORD_CHK_1:
+*/
+;---
+	SWAPA	B1_MIN_REG
+	AND	A,@0XF0
+	MOV	B1_MIN_REG,A	;B1_MIN_REG(3..0) => B1_MIN_REG(7..4)
+	
+	SWAPA	B1_SEC_REG
+	AND	A,@0X0F
+	OR	B1_MIN_REG,A	;B1_SEC_REG(7..4) => B1_MIN_REG(3..0)
+	
+	SWAPA	TEMP0
+	AND	A,@0XF0
+	MOV	B1_SEC_REG,A	;TEMP0 => B1_SEC_REG(3..0)	
+				;PSWORD_TMP keep the new input digit string
+;-------------------------------------------------------------------------------
+	MOV	A,B1_12PSWORD
+	XOR	A,B1_MIN_REG
+	JPNZ	PSWORD_NOT_IN
+
+	MOV	A,B1_34PSWORD
+	XOR	A,B1_SEC_REG
+	AND	A,@0XF0
+	JPNZ	PSWORD_NOT_IN
+
+PSWORD_IN_OK:
+	SETC
+        RET
+
+PSWORD_NOT_IN:		;the intput not digital or wrong remote access code
+	CLRC
+        RET
+;-------------------------------------------------------------------------------
+;	DIALKEY_CHK
+;	input	:no
+;	output	:C = 1/0 - num-key/not
+;		 ACC = the VALUE
+;-------------------------------------------------------------------------------
+DIALKEY_CHK:		;Key table
+	MOV	A,@CKEY_1
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_1	;1
+	MOV	A,@CKEY_2
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_2	;2
+	MOV	A,@CKEY_3
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_3	;3
+	MOV	A,@CKEY_4
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_4	;4
+	MOV	A,@CKEY_5
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_5	;5
+	MOV	A,@CKEY_6
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_6	;6
+	MOV	A,@CKEY_7
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_7	;7
+	MOV	A,@CKEY_8
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_8	;8
+	MOV	A,@CKEY_9
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_9	;9
+	MOV	A,@CKEY_E
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_E	;*
+	MOV	A,@CKEY_0
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_0	;0
+	MOV	A,@CKEY_F
+	LCALL	KEY_CHK
+	JPNC	DIALKEY_CHK_F	;#
+
+	CLRC
+
+	RET
+;---------------------------------------
+DIALKEY_CHK_1:
+	MOV	TEMP0,@NUM_1
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_2:
+	MOV	TEMP0,@NUM_2
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_3:
+	MOV	TEMP0,@NUM_3
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_4:
+	MOV	TEMP0,@NUM_4
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_5:
+	MOV	TEMP0,@NUM_5
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_6:
+	MOV	TEMP0,@NUM_6
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_7:
+	MOV	TEMP0,@NUM_7
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_8:
+	MOV	TEMP0,@NUM_8
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_9:
+	MOV	TEMP0,@NUM_9
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_E:
+	MOV	TEMP0,@NUM_XIN
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_0:
+	MOV	TEMP0,@NUM_0
+	JMP	DIALKEY_CHK_NUM
+DIALKEY_CHK_F:
+	MOV	TEMP0,@NUM_JIN
+	;JMP	DIALKEY_CHK_NUM
+;-----------------------------
+DIALKEY_CHK_NUM:
+	MOV	A,TEMP0
+	
+	SETC
+	
+	RET
+
+;-------------------------------------------------------------------------------
+

@@ -1,0 +1,761 @@
+;-------------------------------------------------------------------------------
+.NOLIST
+.INCLUDE	REG_D20.inc
+.INCLUDE	MX93D20.inc
+.INCLUDE	MACRO.inc
+.INCLUDE	CONST.inc
+
+.GLOBAL	ANS_STATE
+;-------------------------------------------------------------------------------
+.EXTERN	GetOneConst
+.EXTERN	INIT_DAM_FUNC
+.EXTERN	DAA_ANS_SPK
+.EXTERN	DAA_ANS_REC
+.EXTERN	DAA_LIN_SPK
+.EXTERN	DAA_LIN_REC
+.EXTERN	DAA_ROMMOR_ON
+.EXTERN	DAA_SPK
+.EXTERN	DAA_OFF
+.EXTERN	LBEEP
+.EXTERN	LLBEEP
+.EXTERN	BBBEEP
+.EXTERN	BBEEP
+.EXTERN	BEEP
+
+.EXTERN	HOOK_ON
+.EXTERN	HOOK_OFF
+
+.EXTERN	MSG_WEEK
+.EXTERN	MSG_WEEKNEW
+.EXTERN	MSG_HOUR
+.EXTERN	MSG_HOURNEW
+.EXTERN	MSG_MIN
+.EXTERN	MSG_MINNEW
+
+.EXTERN	VPMSG_CHK
+
+.EXTERN	PUSH_FUNC
+.EXTERN	PAUBEEP
+.EXTERN	CLR_FUNC
+
+.EXTERN	STOR_MSG
+.EXTERN	OGM_SELECT
+.EXTERN	OGM_STATUS
+.EXTERN	DGT_TAB
+;.EXTERN	SET_LED3
+;.EXTERN	SET_LED4
+.EXTERN	STOR_VP
+.EXTERN	LOCAL_PRO
+.EXTERN	SET_TIMER
+.EXTERN	CLR_TIMER
+.EXTERN CLR_TIMER2
+.EXTERN SET_TIMER2
+.EXTERN	REC_START
+.EXTERN REAL_DEL
+.EXTERN	LINE_START
+.EXTERN	LED_HLDISP
+.EXTERN	BCVOX_INIT
+.EXTERN	FFW_MANAGE
+.EXTERN	REW_MANAGE
+.EXTERN	VPMSG_CHK
+.EXTERN	CLR_FLAG
+.EXTERN	SET_DELMARK
+.EXTERN	SET_DELMARKNEW
+.EXTERN	DAM_BIOSFUNC
+.EXTERN	VPMSG_DEL
+.EXTERN	VOL_TAB
+.EXTERN	GC_CHK
+.EXTERN	GET_VPTLEN
+.EXTERN	VPMSG_DELALL
+.EXTERN	UPDATE_FLASH
+
+;---
+.EXTERN	ANNOUNCE_NUM
+.EXTERN	VP_AllOldMessagesErased
+.EXTERN	VP_AnswerOn
+.EXTERN	VP_AnswerOff
+.EXTERN	VP_DefOGM
+.EXTERN	VP_DoYouWantToDelAllMessage
+.EXTERN	VP_EndOfMessage
+.EXTERN	VP_ErrorCode
+.EXTERN	VP_MemoryFull
+.EXTERN	VP_Message
+.EXTERN	VP_Messages
+.EXTERN	VP_NEW
+.EXTERN	VP_No
+
+.EXTERN	VP_PlsInputYourRCode
+.EXTERN	VP_WEEK
+.EXTERN	VP_YouHave
+;---
+;-------------------------------------------------------------------------------
+.LIST
+;-------------------------------------------------------------------------------
+.ORG	0x5500
+ANS_STATE:
+	
+	LAC	MSG
+	XORL	CMSG_KEY7S		;接线按ON/OFF(相当于CPC)
+	BS	ACZ,ANS_STATE_STOP
+	
+	LAC	MSG
+	XORL	CMSG_KEY4D		;VOL+++
+	BS	ACZ,ANS_STATE_VOLA
+	LAC	MSG
+	XORL	CMSG_KEY2D		;VOL---
+	BS	ACZ,ANS_STATE_VOLS
+;-----
+	LAC	PRO_VAR
+	ANDK	0XF
+	BS	ACZ,ANS_STATE0		;for initial
+	SBHK	1
+	BS	ACZ,ANS_STATE_REC	;for record(ANSWER AND RECORD ICM)
+	SBHK	1
+	BS	ACZ,ANS_STATE_LINE	;for line(ANSWER ONLY)
+	SBHK	1
+	BS	ACZ,ANS_STATE_EXIT	;for end(TimeOut/BTONE/CTONE/VOX_ON)
+
+	RET
+;---------------------------------------
+ANS_STATE_STOP:
+	LACL	CMSG_CPC
+	CALL	STOR_MSG
+	
+	RET	
+	
+ANS_STATE_CPC:
+	BS	B1,ICM_STATE_EXIT_END
+
+ANS_STATE_VOLS:
+	LACL	CMSG_VOLS
+	CALL	STOR_MSG
+	
+	RET
+
+ANS_STATE_VOLA:
+	LACL	CMSG_VOLA
+	CALL	STOR_MSG
+	
+	RET	
+;-------------------------------------------------------------------------------
+ANS_STATE0:
+	LAC	MSG
+	XORL	CMSG_INIT		;INITIAL
+	BS	ACZ,ANS_STATE_INIT
+;ANS_STATE0_1:	
+	LAC	MSG
+	XORL	CVP_STOP
+	BS	ACZ,ANS_STATE0_VPSTOP	;CVP_STOP,OGM播放完毕
+;ANS_STATE0_2:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,ANS_STATE0_DTMF
+;ANS_STATE0_3:
+	
+;ANS_STATE0_4:
+	LAC	MSG
+	XORL	CMSG_TMR		;TMR
+	BS	ACZ,ANS_STATE0_TMR
+;ANS_STATE0_5:	
+	LAC	MSG
+	XORL	CMSG_CPC		;接线后摘机(相当于CPC)
+	BS	ACZ,ANS_STATE_CPC
+
+	RET
+;---------------
+ANS_STATE0_TMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	
+	BIT	PRO_VAR1,0	
+	BS	TB,ANS_STATE0_TMR_1
+	
+	LACL	0X0FF
+	SAH	LED_L		;"灭"
+	
+	RET
+ANS_STATE0_TMR_1:
+	LACL	0X086		;"E"
+	SAH	LED_L
+	
+	RET
+;---------------
+ANS_STATE_INIT:
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	
+	LACL	400
+	CALL	SET_TIMER
+	LACK	0
+	SAH	PRO_VAR1
+	
+	LACL	0X0FFF		;!!!Note PSWORD_TMP(15..12)是计数器
+	SAH	PSWORD_TMP
+	
+	LACL	0X86			;"E"
+	SAH	LED_L
+
+	BIT	ANN_FG,13		;memoful?
+	BS	TB,ANS_STATE_INIT4
+	BIT	EVENT,9			;answer off?
+	BS	TB,ANS_STATE_INIT2
+
+;---可以录音---OGM1
+
+	LACK	0X0010
+	SAH	PRO_VAR
+
+	CALL	OGM_STATUS
+
+	LACK	0X07D
+	CALL	STOR_VP			;延时1 second
+	LAC	MSG_ID
+	ORL	0XFE00
+	CALL	STOR_VP
+	CALL	LBEEP
+
+	CALL	OGM_SELECT
+	BZ	ACZ,ANS_STATE_INIT1_1
+	
+	CALL	INIT_DAM_FUNC
+	LACK	0X07D
+	CALL	STOR_VP			;延时1 second
+	CALL	VP_DefOGM
+	CALL	LBEEP
+
+ANS_STATE_INIT1_1:
+	RET
+;---Answer off---
+ANS_STATE_INIT2:
+
+	LACK	0X0020
+	SAH	PRO_VAR
+
+	CALL	INIT_DAM_FUNC
+	LACK	0X07D
+	CALL	STOR_VP		;延时1 second
+	CALL	VP_PlsInputYourRCode
+	CALL	BEEP
+ANS_STATE_INIT2_1:	
+	RET
+;---------------------------------------
+ANS_STATE_INIT4:		;full
+
+	LACK	0X0020
+	SAH	PRO_VAR
+
+	CALL	INIT_DAM_FUNC
+	LACK	0X07D
+	CALL	STOR_VP		;延时1 second
+	CALL	VP_MemoryFull
+	CALL	BEEP
+
+ANS_STATE_INIT4_1:
+	
+	RET
+;---------------------------------------
+ANS_STATE0_VPSTOP:		;开始录音(ICM)/ON_LINE(only)
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_REC
+	CALL	BCVOX_INIT
+
+	LACK	0
+	SAH	PRO_VAR1
+	SAH	PRO_VAR2	;计算按下的次数
+	LACL	400
+	CALL	SET_TIMER
+;---	
+	LAC	PRO_VAR
+	SFR	4
+	ANDK	0XF
+	SBHK	1
+	BS	ACZ,ICM_STATE0_VPSTOP1
+	SBHK	1
+	BS	ACZ,ICM_STATE0_VPSTOP2
+	
+	RET
+;---PRO_VAR = 0X0010
+ICM_STATE0_VPSTOP1:
+
+	LACK	0X0001
+	SAH	PRO_VAR
+	
+	CALL	VPMSG_CHK
+	CALL	REC_START
+
+	RET
+ICM_STATE0_VPSTOP2:
+	
+	LACK	0X0002
+	SAH	PRO_VAR
+
+	CALL	LINE_START
+	
+	RET
+;---------------for DTMF
+ANS_STATE0_DTMF:
+	LAC	DTMF_VAL
+	XORL	0XFE
+	BZ	ACZ,ANS_STATE_DTMF
+;---放OGM时,有"*"键按下
+	LACK	0X0020
+	SAH	PRO_VAR
+
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+
+	LACK	0X040
+	CALL	STOR_VP		;延时0.5 second
+	CALL	VP_PlsInputYourRCode
+
+	RET
+
+	;BS	B1,ANS_STATE0_VPSTOP
+
+ANS_STATE_LINE_DTMF:		;Line Mode
+	LACK	0
+	SAH	PRO_VAR1	
+	
+ANS_STATE_DTMF:			;比较密码
+	CALL	BCVOX_INIT	;有键按下BCVOX要清零
+
+	LAC	DTMF_VAL
+	ANDK	0X0F
+	CALL	PSWORD_CHK
+	SAH	SYSTMP1
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_DTMF_PASS	;次数到3,并且PASSWORD匹配成功
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_DTMF_PASS	;次数到6,并且PASSWORD匹配成功
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_DTMF_PASS	;次数到9,并且PASSWORD匹配成功
+;---匹配不成功
+	LAC	SYSTMP1
+	ANDL	0XF0
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_DTMF_NOPASS	;次数到3,并且PASSWORD匹配不成功
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_DTMF_NOPASS	;次数到6,并且PASSWORD匹配不成功
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_DTMF_FAIL		;次数到9,并且PASSWORD匹配不成功
+	
+	RET
+ANS_STATE_DTMF_NOPASS:
+
+	LACK	0X0020
+	SAH	PRO_VAR
+
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	CALL	VP_ErrorCode
+	CALL	VP_PlsInputYourRCode
+
+	RET
+ANS_STATE_DTMF_FAIL:
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	CALL	BBEEP
+	
+	LACK	0X003
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+ANS_STATE_DTMF_PASS:		;密码成功
+	
+ICM_REV_DTMF_YES1:	
+	LACL	0XC7	;"L"
+	SAH	LED_L
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_REC
+
+	CALL	CLR_FUNC	;先空
+	LACL	REMOTE_PRO	;进入遥控
+	CALL	PUSH_FUNC
+
+	CALL	UPDATE_FLASH
+	
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+	
+	LACK	0
+	SAH	PRO_VAR		;程序步骤
+	SAH	PRO_VAR1	;计时清零
+	SAH	PSWORD_TMP	;功能字符清零
+	CALL	BCVOX_INIT
+	
+	RET
+;-------
+
+;=============================================================
+ANS_STATE_REC:
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,ANS_STATE_REC_DTMF
+;ANS_STATE_REC_1:
+	LAC	MSG
+	XORL	CMSG_TMR		;TMR 400ms
+	BS	ACZ,ANS_STATE_REC_TMR
+;ANS_STATE_REC_2:
+	LAC	MSG
+	XORL	CMSG_VOX		;VOX_ON 8s
+	BS	ACZ,ANS_STATE_REC_VOX
+;ANS_STATE_REC_3:
+	LAC	MSG
+	XORL	CMSG_CTONE		;CTONE 8s
+	BS	ACZ,ANS_STATE_REC_CTONE
+;ANS_STATE_REC_4:
+	LAC	MSG
+	XORL	CMSG_BTONE		;BTONE xs
+	BS	ACZ,ANS_STATE_REC_BTONE
+;ANS_STATE_REC_5:
+	LAC	MSG
+	XORL	CREC_FULL		;REC_FULL
+	BS	ACZ,ANS_STATE_REC_FULL
+;ANS_STATE_REC_6:
+
+;ANS_STATE_REC_7:
+	
+;ANS_STATE_REC_8:	
+	LAC	MSG
+	XORL	CMSG_CPC		;接线后摘机(相当于CPC)
+	BS	ACZ,ANS_STATE_REC_CPC
+	
+	RET
+	
+;---------------------------------------
+ANS_STATE_REC_DTMF:
+	CALL	BCVOX_INIT	;有键按下BCVOX要清零
+
+	LAC	DTMF_VAL
+	ANDK	0X0F
+	CALL	PSWORD_CHK
+	SAH	SYSTMP1
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_REC_DTMF_PASS	;次数到3,并且PASSWORD匹配成功
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_REC_DTMF_PASS	;次数到6,并且PASSWORD匹配成功
+	SBHK	0X30
+	BS	ACZ,ANS_STATE_REC_DTMF_PASS	;次数到9,并且PASSWORD匹配成功
+;---不满足条件
+	LAC	SYSTMP1
+	XORL	0X90
+	ANDL	0XF0
+	BS	ACZ,ANS_STATE_REC_DTMF_FIAL	;次数到9,并且PASSWORD匹配不成功
+
+	RET
+ANS_STATE_REC_DTMF_PASS:
+	LAC	CONF
+	ORL	1<<11
+	CALL	DAM_BIOSFUNC	;若是录音过程,则删除之
+	
+	BS	B1,ICM_REV_DTMF_YES1
+ANS_STATE_REC_DTMF_FIAL:
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	CALL	BBEEP
+	LACK	0X0003
+	SAH	PRO_VAR
+	
+	RET
+;---------------------------------------
+ANS_STATE_REC_CPC:		;录音时
+	LAC	PRO_VAR1
+	SBHK	2
+	BZ	SGN,ANS_STATE_REC_CPC1
+	
+	LAC	CONF
+	ORL	1<<11
+	SAH	CONF
+	CALL	DAM_BIOSFUNC
+ANS_STATE_REC_CPC1:	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_OFF
+	LACK	0X005
+	CALL	STOR_VP
+
+	CALL	VPMSG_CHK
+	
+	LACK	0X0003
+	SAH	PRO_VAR
+
+	RET
+
+;---------------------------------------
+ANS_STATE_REC_VOX:		;由于后BTONE,CTONE,VOX要持续一段时间,要考虑小长度的录音删除问题
+ANS_STATE_REC_CTONE:
+	LAC	CONF
+	ORK	20
+	SAH	CONF		;切除静音/TONE声
+ANS_STATE_REC_BTONE:
+	CALL	INIT_DAM_FUNC
+	CALL	VPMSG_CHK
+	LAC	MSG_T
+	CALL	GET_VPTLEN
+	SBHK	3
+	BZ	SGN,ANS_STATE_BTONE_DET
+;---删除比3s短的录音
+	LAC	MSG_T
+	CALL	VPMSG_DEL
+	CALL	GC_CHK
+ANS_STATE_BTONE_DET:
+	CALL	INIT_DAM_FUNC
+	CALL	VPMSG_CHK
+;---
+	LACK	0X0003
+	SAH	PRO_VAR
+	
+;	CALL	DAA_OFF
+	CALL	DAA_SPK		;???????????????????
+	CALL	BBEEP		;替换语音BB
+
+	RET
+
+;---------------------------------------
+ANS_STATE_REC_TMR:
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+
+	LAC	PRO_VAR1
+	;SBHK	60			;ICM录音时长1分钟
+	SBHL	CICM_LEN		;ICM录音时长
+	BZ	SGN,ICM_TMR_DET_END
+;---	
+	BIT	PRO_VAR1,0
+	BS	TB,ANS_STATE_REC_TMR_1
+	
+	LACL	0X0FF
+	SAH	LED_L		;"灭"
+	
+	RET
+ANS_STATE_REC_TMR_1:
+	LACL	0X086		;"E"
+	SAH	LED_L
+	
+	RET
+
+ICM_TMR_DET_END:	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	CALL	BBEEP
+	
+	LACK	0X0003
+	SAH	PRO_VAR
+
+	RET
+;-------
+ANS_STATE_REC_FULL:		;录满退出
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	CALL	VP_MemoryFull
+	
+	CALL	BBEEP
+	
+	LACK	0X0003
+	SAH	PRO_VAR
+	
+	RET
+
+;=================================================================
+ANS_STATE_EXIT:
+	LAC	MSG
+	XORL	CVP_STOP		
+	BS	ACZ,ICM_STATE_EXIT_END	;CVP_STOP,EXIT播放完毕
+	
+	RET
+ICM_STATE_EXIT_END:		;退出答录状态
+	CALL	INIT_DAM_FUNC
+	CALL	HOOK_OFF
+	CALL	CLR_FUNC	;先空
+   	LACL	LOCAL_PRO	;进入本地操作
+     	CALL	PUSH_FUNC
+
+	LACK	0
+	SAH	PRO_VAR
+	SAH	PRO_VAR1
+
+	LACL	1000
+	CALL	SET_TIMER
+
+	LACL	CMSG_INIT
+	CALL	STOR_MSG
+	
+	LACL	CMODE9
+	CALL	DAM_BIOSFUNC
+	
+	CALL	UPDATE_FLASH
+	
+	RET
+;========================================================================
+ANS_STATE_LINE:		;off/full
+	LAC	MSG
+	XORL	CREV_DTMF		;CREV_DTMF
+	BS	ACZ,ANS_STATE_LINE_DTMF
+;ANS_STATE_LINE_1:
+	LAC	MSG
+	XORL	CMSG_TMR		;time 1s
+	BS	ACZ,ANS_STATE_LINE_TMR
+;ANS_STATE_LINE_2:
+	
+;ANS_STATE_LINE_3:
+	
+;ANS_STATE_LINE_4:
+	LAC	MSG
+	XORL	CMSG_BTONE		;BTONE 8s
+	BS	ACZ,ANS_STATE_BTONE_DET
+;ANS_STATE_LINE_5:
+	;LAC	MSG
+	;XORL	CMSG_TMR2		;CDTMF_TMR(长)
+	;BS	ACZ,ANS_STATE_TMR2
+;ANS_STATE_LINE_6:	
+	LAC	MSG
+	XORL	CMSG_CPC		;接线后摘机(相当于CPC)
+	BS	ACZ,ANS_STATE_CPC
+
+	RET
+;---------------
+ANS_STATE_LINE_TMR:		;for memful/answer only/answer off
+
+	LACL	CTMR_CTONE
+	SAH	TMR_VOX
+	SAH	TMR_CTONE
+
+	LAC	PRO_VAR1
+	ADHK	1
+	SAH	PRO_VAR1
+	SBHK	10*10/4		;10s wait for PASSWORD
+	BZ	SGN,ANS_STATE_LINE_TMR_END
+	
+	BIT	PRO_VAR1,0
+	BS	TB,ANS_STATE_LINE_TMR_1
+	
+	LACL	0X0FF
+	SAH	LED_L		;"灭"
+	
+	RET
+
+ANS_STATE_LINE_TMR_1:
+	LACL	0X086		;"E"
+	SAH	LED_L
+	
+	RET
+;---
+ANS_STATE_LINE_TMR_END:	
+	LACK	0X0003
+	SAH	PRO_VAR
+	
+	CALL	INIT_DAM_FUNC
+	CALL	DAA_ANS_SPK
+	CALL	BBEEP	;替换语音BB
+
+	RET
+;-------------------------------------------------------------------------------
+;###############################################################################
+;----------------------------------------------------------------------------
+;       Function : PSWORD_CHK
+;       Password check
+;	Input  : ACCH = VALUE(DTMF_VAL)
+;       Output : ACCH = x0 - password in ok(x = the count of key DTMF)
+;                       xF - password fail
+;-------------------------------------------------------------------------------
+PSWORD_CHK:
+        SAH	SYSTMP0
+PSWORD_CHK1:
+;---先把计数器PSWORD_TMP(15..12)加1后放到PSWORD_TMP(11..8)
+	LAC     PSWORD_TMP
+	ANDL	0XF0FF
+        SAH     PSWORD_TMP
+	
+	LAC     PSWORD_TMP
+	SFR	4
+	ANDL	0X0F00
+	ADHL	0X0100
+	OR	PSWORD_TMP
+	SAH	PSWORD_TMP
+;---	
+        LAC     PSWORD_TMP
+        SFL     4
+	OR	SYSTMP0
+        SAH     PSWORD_TMP        ; PSWORD_TMP keep the new input digit string
+;-------------------------------------------------------------------------------
+        LAC     PSWORD_TMP
+        XOR     PASSWORD
+        ANDL	0X0FFF
+        BS      ACZ,PSWORD_IN_OK
+;---
+PSWORD_NOT_IN:		;the intput not digital or wrong remote access code
+	LAC	PSWORD_TMP
+	SFR	8
+	ANDL	0XF0
+	ORK	0X0F
+	
+        RET	
+PSWORD_IN_OK:
+	LAC	PSWORD_TMP
+	SFR	8
+	ANDL	0X0F0
+	
+        RET
+;----------------------------------------------------------------------------
+;       Function : RMTFUNC_CHK
+;       Password check
+;	Input  : ACCH = VALUE(DTMF_VAL)
+;       Output : ACCH = 0 - password in ok
+;
+;                       0XFF - password fail
+;-------------------------------------------------------------------------------
+RMTFUNC_CHK:
+	ANDK	0X0F
+        SAH	SYSTMP0
+;---先把计数器PSWORD_TMP(15..12)加1后放到PSWORD_TMP(11..8)
+	LAC     PSWORD_TMP
+	ANDL	0XF0FF
+        SAH     PSWORD_TMP
+	
+	LAC     PSWORD_TMP
+	SFR	4
+	ANDL	0X0F00
+	ADHL	0X0100
+	OR	PSWORD_TMP
+	SAH	PSWORD_TMP
+;---	
+        LAC     PSWORD_TMP
+        SFL     4
+	OR	SYSTMP0
+        SAH     PSWORD_TMP	; PSWORD_TMP keep the new input digit string
+
+        LAC	PSWORD_TMP
+        SAH	SYSTMP0
+        LACL	0X0FFF
+        SAH	PSWORD_TMP
+;-------------------------------------------------------------------------------
+        LAC     SYSTMP0
+        XORL	0X030		;"3","0"
+        ANDL	0X0FF
+        BS      ACZ,RMTFUNC_3_0_OK
+;---
+RMTFUNC_NOT_IN:			;the intput not digital or wrong remote access code
+        LAC	SYSTMP0
+        SAH	PSWORD_TMP
+	SFR	8
+	ANDL	0XF0
+	ORK	0X0F
+
+        RET	
+
+RMTFUNC_3_0_OK:
+	LAC	SYSTMP0
+	SFR	8
+	ANDL	0X0F0
+	ORK	0X003
+
+	RET
+;-------------------------------------------------------------------------------
+.INCLUDE	f_remote.ASM
+;-------------------------------------------------------------------------------
+.END

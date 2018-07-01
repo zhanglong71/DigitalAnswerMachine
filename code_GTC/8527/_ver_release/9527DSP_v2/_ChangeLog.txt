@@ -1,0 +1,9 @@
+**********************************************************************************************
+Code	:GTC-9586 
+DSP	:MD22
+**********************************************************************************************
+Íê±Ï
+
+2008-9-1 default aera-code=AAAF;
+
+2008-9-4 change the method of set DAM-att after read data from flash;after store record-command into iic-buffer,delay 30ms 

@@ -1,0 +1,39 @@
+11_02:在10_09的基础上加AnswerOn/AnswerOff/AnnouncementOne/AnnouncementTwo的调节时VOP,无VP时发退出命令,VP条目最多55条,上电时发DAM状态给MCU,播放VP时发送VP相关信息(year/month/day/hour/minute)
+
+11_07:在11_06的基础上初始上电时发送DAM状态给MCU再发0X2F0X2F,发送缓冲区加到足够大。
+
+11_08:在11_07的基础上HOOK On/Off时的电平互换,SET_DAMATT/GET_WEEK有故障修正。
+
+11_14:在11_08的基础上Answer On/Off/Announcement One/Two后有退出时0x2D退出,加ENDOFMESSAGE指令(0X28),OGM完毕有0X2D退出
+
+11_22:在11_21的基础上遥控播放时的FFW/REW/DELETE,应答时OGM2的播放
+
+12_14:在12_07的基础上加入时间设置命令0x4C/0X46/0X47/0X48/0X49
+
+12_25:在12_14的基础上加入TestMode命令及功能
+
+01_18:在01_07_v1808的基础上改正录OGM时删除OGM1的错误。
+
+01_23:在01_22_v1335的基础上tmode MEMORY_TEST 先设定compression。
+
+02_18:在01_23的基础上改成指定放音new message/all message.
+
+02_27:在02_18的基础上进入加遥控VP-menu,关闭计时,OGM切换
+
+03_17:在02_27的基础上上电更新PASSWORD时先清零.
+
+03_24:在03_17的基础上ICM录音时长3min,OGM录音时长2min;
+
+2008-4-8 18:29,local MEMO录音时长3min;In remote-mode,after memory full,press # to record memo, it be prompt "memory full".Press key 2 to playback new message else play old message
+
+2008-4-10 10:37 remote MEMOrecord length 3min;Add Line-out(local/remote的调节功能);remote OGM record length 2min;
+
+2008-4-11 12:24 remote MSG playing press key 1 once repeat current VP,press key 1 twice play the last VP;After press key "0" to delete all old messages, it will be prompt "All old messages deleted;After set ring,prompt the last ring setting after press ok to confim; During playback OGM by HS press key "7" to delete it, after deleted, it will be prompt "Message deleted;We set memful when available time less than 20s;After memoryful press key 5(OGM record) or key #(memo record) or key 2(play message) or key 9(OGM select) prompt "Memory full".After delete all old messages, it will be prompt "All old messages deleted;
+
+2008-4-15 15:25PLY Memo/Icm播放完退出和强行退出分开处理。
+
+2008-4-16 11:02录OGM结束后Play-OGM/ANS_ON/OGM1-SEL/OGM-SEL时若MFULL就先放MFULL;Exit OGM-record,on exit command send to MCU and play back OGM
+
+2008-4-17 14:51本地OGM录音结束后不发退出命令;播放Memo/Icm时单击1重放当前VP，双击1放上一条VP;放完VP后放VP"EndOfMessage"
+
+2008-4-18 10:43证实并修正2008-4-17的修改;换成2007-12-17的MCUBIOS,并且SW-ALC设置参数相同;Set silence-level=3

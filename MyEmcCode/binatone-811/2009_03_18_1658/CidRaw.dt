@@ -1,0 +1,340 @@
+;-------------------------------------------------------------------------------
+;	ReceiveCidData
+;	Input :
+;	Output: 
+;       Output:	C = 0 - no CID
+;		C = 1 -  Cid data ready
+;			ACCH = 1 - FSK
+;			ACCH = 2 - DTMF
+;-------------------------------------------------------------------------------
+CidRawData:
+;---clean buffer	
+	; clear CidBuffer=0
+;---initial some data
+	BANK	3
+
+	MOV	B3_CidTimer,@CTMR4S	; time out= 4000ms
+CidRawData_01:
+	MOV	A,B3_CidTimer
+	JPZ	CidRawData_Stop
+	
+	BANK	2
+	JPB	B2_RING_FLAG,5,CidRawData_Stop	;Ring Off
+	JPB	B2_RING_FLAG,6,CidRawData_Stop	;Ring High
+	JPB	B2_RING_FLAG,7,CidRawData_Stop	;Ring Low
+	
+	LCALL	GET_RESPOND
+	JPB	TEMP1,6,CidRawData_Cs	; Check if detect Channel seizer ?
+	JPB	TEMP1,5,CidRawData_Ms	; Check if detect Mark signal ?
+	JPB	TEMP1,4,CidRawData_Fsk
+	
+	LCALL	DTMF_CHK
+	JPC	CidRawData_DTMF
+	BANK	3
+		
+	PAGE	#(IIC)
+	CLR	TEMP0			;0X5000
+	MOV	TEMP1,@0X50
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	JMP	CidRawData_01
+CidRawData_Cs:
+	MOV	TEMP0,@0X02		;0X5002
+	MOV	TEMP1,@0X50
+
+	JMP	CidRawData_Com
+CidRawData_Ms:
+	MOV	TEMP0,@0X03		;0X5003
+	MOV	TEMP1,@0X50
+
+CidRawData_Com:
+
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)	
+	JPNB	TEMP1,4,CidRawData_01	; FSK data ready ?
+
+CidRawData_Fsk:
+	CLR	B3_CidCheckSum
+	CALL	CLRCidData
+	
+	MOV	TEMP0,@0X04		;0X5004
+	MOV	TEMP1,@0X50
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+;---First-byte(TYPE)
+	MOV	A,TEMP0
+	SUB	A,@0X04
+	JPZ	VaildType	;header=04 single message data format
+	
+	MOV	A,TEMP0
+	SUB	A,@0X06
+	JPZ	VaildType	;header=06
+	
+	MOV	A,TEMP0
+	SUB	A,@0X80
+	JPZ	VaildType	;header=80 multi-message data format
+	
+	MOV	A,TEMP0
+	SUB	A,@0X82
+	JPZ	VaildType  	;header=82
+
+        JMP	CidRawData_01
+VaildType:
+	MOV	A,TEMP0
+	CALL	SaveCidData
+
+	MOV	B3_CidTimer,@CTMR2S	; time out= 2s
+CidRawData_03:		;Second-byte(length)
+	MOV	A,B3_CidTimer
+	JPZ	CidRawData_Stop
+
+	LCALL	GET_RESPOND
+	JPB	TEMP1,4,CidRawData_031	;resp.12
+	
+	CLR	TEMP0			;0X5000
+	MOV	TEMP1,@0X50
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	;CALL	GET_RESPOND
+	PAGE	#($)	
+	JMP	CidRawData_03
+
+CidRawData_031:		;Get and stor lenght
+	MOV	TEMP0,@0X04		;0X5004
+	MOV	TEMP1,@0X50
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	
+	INCA	TEMP0
+	MOV	B3_CidLength,A
+	
+	MOV	A,TEMP0
+	CALL	SaveCidData
+	
+	MOV	A,B3_CidLength
+	SUB	A,@0X40
+	JPNC	CidRawData_Error
+CidRawData_Loop:
+	MOV	B3_CidTimer,@CTMR2S		; time out 2sec
+CidRawData_04:
+	MOV	A,B3_CidTimer
+	JPZ	CidRawData_Stop
+
+	LCALL	GET_RESPOND
+	JPB	TEMP1,4,CidRawData_041	;resp.12
+	
+	MOV	TEMP0,@0X00		;0X5000
+	MOV	TEMP1,@0X50
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	PAGE	#($)
+	NOP
+	JMP	CidRawData_04	;resp.12
+
+CidRawData_041:	
+	MOV	TEMP0,@0X04		;0X5004
+	MOV	TEMP1,@0X50
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)
+	MOV	A,TEMP0
+	CALL	SaveCidData
+	
+	DEC	B3_CidLength
+	MOV	A,B3_CidLength
+	JPNZ	CidRawData_Loop
+
+	MOV	A,B3_CidCheckSum
+	JPZ	CidRawData_FSKOK
+CidRawData_Error:
+CidRawData_Stop:
+;	CLR	TEMP0		; Stop line monitor mode
+;	MOV	TEMP1,@0X50
+;	PAGE	#(IIC)
+;	CALL	STOR_COMMAND
+;	CALL	SEND2B_COMMAND
+;	CALL	RECE2B_RESPOND
+;	CALL	GET_RESPOND
+;	PAGE	#($)	
+	
+	CLRC			;Cid data not ready
+	
+	RETL	@0		;Error
+
+CidRawData_FSKOK:	
+;	MOV	TEMP0,@0X01	; Stop line monitor mode
+;	MOV	TEMP1,@0X50
+;	PAGE	#(IIC)
+;	CALL	STOR_COMMAND
+;	CALL	SEND2B_COMMAND
+;	CALL	RECE2B_RESPOND
+;	CALL	GET_RESPOND
+;	PAGE	#($)	
+		
+	SETC			;Cid data ready
+	RETL	@1
+;---------------------------------------
+CidRawData_DTMF:
+	MOV	A,@NUM_A
+	SUB	A,B1_DTMF_VAL
+	JPNC	CidRawData_DTMFERR	;Less than 0x0A
+	
+	MOV	A,B1_DTMF_VAL
+	SUB	A,@NUM_D
+	JPNC	CidRawData_DTMFERR	;More than 0x0D
+;CidRawData_DTMF_A:
+;CidRawData_DTMF_B:
+;CidRawData_DTMF_C:
+;CidRawData_DTMF_D:
+CidRawData_DTMFSTART:
+	BANK	3
+	CLR	B3_CidCheckSum
+	MOV	B3_CidTimer,@CTMR2S	; time out 2sec
+	CALL	CLRCidData
+	BANK	1
+	MOV	A,B1_DTMF_VAL
+	CALL	SaveCidData
+CidRawData_DTMF_LOOP:
+	BANK	3
+	MOV	A,B3_CidTimer
+	JPZ	CidRawData_DTMFTMROUT
+	
+	CLR	TEMP0			;line monitor mode
+	MOV	TEMP1,@0X50
+	PAGE	#(IIC)
+	CALL	STOR_COMMAND
+	CALL	SEND2B_COMMAND
+	CALL	RECE2B_RESPOND
+	CALL	GET_RESPOND
+	PAGE	#($)	
+	LCALL	DTMF_CHK
+	JPNC	CidRawData_DTMF_LOOP
+	
+	MOV	A,B1_DTMF_VAL
+	CALL	SaveCidData
+	
+	BANK	1
+	MOV	A,B1_DTMF_VAL	;C End
+	SUB	A,@NUM_C
+	JPZ	CidRawData_DTMFOK
+	MOV	A,B1_DTMF_VAL	;# End
+	SUB	A,@NUM_JIN
+	JPZ	CidRawData_DTMFOK
+	
+	MOV	A,B1_DTMF_VAL	;A restart
+	SUB	A,@NUM_A
+	JPZ	CidRawData_DTMFSTART
+	MOV	A,B1_DTMF_VAL	;B restart
+	SUB	A,@NUM_B
+	JPZ	CidRawData_DTMFSTART
+	MOV	A,B1_DTMF_VAL	;D restart
+	SUB	A,@NUM_D
+	JPZ	CidRawData_DTMFSTART
+	
+	JMP	CidRawData_DTMF_LOOP
+CidRawData_DTMFTMROUT:
+	MOV	A,@NUM_C	;End with "C"
+	CALL	SaveCidData
+	;JMP	CidRawData_DTMFOK
+;-------------------
+CidRawData_DTMFOK:
+	
+;	MOV	TEMP0,@0X01	; Stop line monitor mode
+;	MOV	TEMP1,@0X50
+;	PAGE	#(IIC)
+;	CALL	STOR_COMMAND
+;	CALL	SEND2B_COMMAND
+;	CALL	RECE2B_RESPOND
+;	CALL	GET_RESPOND
+;	PAGE	#($)	
+	
+	SETC			;Cid data ready
+	RETL	@2
+
+;-------------------	
+CidRawData_DTMFERR:	
+	BANK	3
+	JMP	CidRawData_01
+;-------------------------------------------------------------------------------
+SaveCidData:
+	MOV	TEMP0,A
+	BLOCK	2
+	BANK	3
+	MOV	A,@CID_ZONE_START
+	MOV	_RC,A
+	MOV	A,_RD		;Offset address
+	ADD	A,@CID_TYPE	;Start address
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+
+	ADD	B3_CidCheckSum,A	;Chksum
+	
+	MOV	A,@CID_ZONE_START
+	MOV	_RC,A
+	INC	_RD
+	
+	RET
+;-------------------------------------------------------------------------------
+GetCidData:		;Don't use TEMP0
+	BLOCK	2
+	
+	MOV	A,@(CID_ZONE_START+1)
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP1,A		;Offset address
+	
+	MOV	A,@CID_ZONE_START
+	MOV	_RC,A
+	MOV	A,_RD
+	SUB	A,TEMP1
+	JPZ	GetCidData_NoData
+;---		
+	MOV	A,@(CID_ZONE_START+1)
+	MOV	_RC,A
+	INC	_RD
+
+	MOV	A,TEMP1		;Offset address
+	ADD	A,@CID_TYPE	;Start address
+	MOV	_RC,A
+	MOV	A,_RD
+
+	SETC
+	
+	RET
+GetCidData_NoData:
+	CLRC
+	RET
+
+CLRCidData:
+	BLOCK	2
+	MOV	A,@CID_ZONE_START
+	MOV	_RC,A
+	CLR	_RD
+
+	INC	_RC
+	CLR	_RD
+	
+	RET
+;-------------------------------------------------------------------------------

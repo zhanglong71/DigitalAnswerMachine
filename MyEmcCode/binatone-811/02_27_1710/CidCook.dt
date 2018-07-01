@@ -1,0 +1,718 @@
+;-------------------------------------------------------------------------------
+DTMF_DECODE:
+;---先加入本地时间
+	BLOCK	2
+
+	MOV	A,@CIDTIME_FLAG
+	MOV	_RC,A
+	MOV	_RD,@4		;Default TIME-length = 4
+	
+	MOV	A,@CIDNUM_FLAG
+	MOV	_RC,A
+	CLR	_RD		;Default NUM-length = 0
+
+	MOV	A,@CIDNAME_FLAG
+	MOV	_RC,A
+	CLR	_RD		;Default NAME-length = 0(Unknow/Secret)
+
+	BANK	0
+	
+	MOV	A,@CIDTIME_START
+	MOV	_RC,A		;TIME-start
+
+	MOV	A,B0_MON_REG	;month
+	MOV	_RD,A
+	INC	_RC
+
+	MOV	A,B0_DAY_REG	;day
+	MOV	_RD,A	
+	INC	_RC
+	
+	MOV	A,B0_HOUR_REG	;hour
+	MOV	_RD,A
+	INC	_RC
+
+	MOV	A,B0_MIN_REG	;minute
+	MOV	_RD,A	
+;---
+	LCALL	GetCidData
+	MOV	TEMP0,A
+	SUB	A,@NUM_A
+	JPZ	DTMF_DECODE0X0A		;"A"
+	
+	MOV	A,TEMP0
+	SUB	A,@NUM_B
+	JPZ	DTMF_DECODE0X0B		;"B"
+	
+	MOV	A,TEMP0
+	SUB	A,@NUM_D
+	JPZ	DTMF_DECODE0X0D		;"D"
+
+	RETL	@0xFF		;error
+
+DTMF_DECODE0X0A:	;正常解码
+	MOV	A,@CIDNUM_START
+	MOV	OFFSET_D,A
+	CLR	COUNT
+DTMF_DECODE0X0A_LOOP:
+;---Decode TelNum
+	LCALL	GetCidData
+	JPNC	DTMF_DECODE0X0A_END	;No data
+	MOV	TEMP0,A
+	
+	SUB	A,@CH_9
+	JPNC	DTMF_DECODE0X0A_LOOP	;比9大,丢掉
+	
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	
+	MOV	_RD,A
+	
+	INC	COUNT		;The length counter
+	INC	OFFSET_D
+	JMP	DTMF_DECODE0X0A_LOOP
+DTMF_DECODE0X0A_END:
+
+	MOV	A,@CIDNUM_FLAG
+	MOV	_RC,A
+	MOV	_RD,COUNT	;Save NUM-length
+	
+	MOV	A,@0
+	CALL	SET_CIDTYPE
+	
+	RETL	@0
+;-------------------------------------------------------------------------------		
+DTMF_DECODE0X0B:
+
+	LCALL	GetCidData
+	MOV	TEMP0,A
+	SUB	A,@NUM_0
+	JPZ	DTMF_DECODE0X0B_Unknow	;B0(BOOC)
+	MOV	A,TEMP0
+	SUB	A,@NUM_1
+	JPZ	DTMF_DECODE0X0B_Secret	;B1(B1OC)
+DTMF_DECODE0X0B_Unknow:
+	MOV	A,@CIDNUM_FLAG
+	MOV	_RC,A
+	CLR	_RD		;NUM-length = 0(Unknow)
+	
+	MOV	A,@2
+	CALL	SET_CIDTYPE
+	
+	RETL	@2
+DTMF_DECODE0X0B_Secret:
+	MOV	A,@CIDNUM_FLAG
+	MOV	_RC,A
+	CLR	_RD		;NUM-length = 0(Secret)
+	
+	MOV	A,@1
+	CALL	SET_CIDTYPE
+	
+	RETL	@1
+;------------------------------------------
+DTMF_DECODE0X0D:
+
+	LCALL	GetCidData
+	MOV	TEMP0,A
+	LCALL	GetCidData
+	SUB	A,@NUM_JIN
+	JPNZ	DTMF_DECODE0X0A
+
+DTMF_DECODE0X0DF:	;Dx#
+	MOV	A,TEMP0
+	SUB	A,@NUM_1
+	JMP	DTMF_DECODE0X0B_Secret	;D1#(Secret)
+	
+	MOV	A,TEMP0
+	SUB	A,@NUM_2
+	JMP	DTMF_DECODE0X0B_Intern	;D2#(international number)
+
+	JMP	DTMF_DECODE0X0B_Unknow	;Dx#(Unknown number)
+;---	
+DTMF_DECODE0X0B_Intern:
+	MOV	A,@CIDNUM_FLAG
+	MOV	_RC,A
+	CLR	_RD		;NUM-length = 0(Intern)	
+
+	MOV	A,@5
+	CALL	SET_CIDTYPE
+
+	RETL	@5
+;-------------------------------------------------------------------------------
+;	将原始的CID格式数据转换成自定义的格式(format convert)
+;	解码后的数据存放在以CIDTEL_FLAG开始的区域
+;-------------------------------------------------------------------------------
+FSK_DECODE:
+	LCALL	GetCidData
+	MOV	TEMP0,A		;the CID-type
+	SUB	A,@0X04
+	JPZ	FSK_DECODE0X04
+	MOV	A,TEMP0
+	SUB	A,@0X06
+	JPZ	FSK_DECODE0X06
+	
+	MOV	A,TEMP0
+	SUB	A,@0X80
+	JPZ	FSK_DECODE0X8X
+	MOV	A,TEMP0
+	SUB	A,@0X82
+	JPZ	FSK_DECODE0X8X
+	
+	JMP	FSK_DECODE_ERROREND
+;---------------------------------------
+FSK_DECODE0X04:
+;---Get lenght
+	LCALL	GetCidData
+	MOV	TEMP0,A		;the length
+	
+	MOV	A,@8
+	SUB	TEMP0,A
+	
+	MOV	A,@CIDNUM_FLAG
+	MOV	_RC,A
+	MOV	_RD,TEMP0	;NUM-length
+;---Decode time	
+	MOV	A,@CIDTIME_FLAG
+	MOV	_RC,A
+	MOV	_RD,@4		;TIME-length
+
+	MOV	A,@(CID_TYPE+2)
+	MOV	OFFSET_S,A	
+	MOV	A,@CIDTIME_START
+	MOV	OFFSET_D,A
+	CALL	TIME_DECODE
+;---Decode TelNum
+	MOV	A,@CIDNUM_START
+	MOV	OFFSET_D,A
+;---Note change pointer 
+	BLOCK	2
+	MOV	A,@(CID_ZONE_START+1)
+	MOV	_RC,A
+	ADD	_RD,@8
+FSK_DECODE0X04_LOOP:
+	LCALL	GetCidData
+	JPNC	FSK_DECODE0X04_OVER
+	LCALL	CIDNUM_VERIFY	;检查并转化成机内码
+	MOV	TEMP0,A
+	
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	INC	OFFSET_D
+	JMP	FSK_DECODE0X04_LOOP
+;---the length of name(no name)
+	MOV	A,@CIDNAME_START
+	MOV	_RC,A
+	CLR	_RD
+FSK_DECODE0X04_OVER:
+	JMP	FSK_DECODE0X04_END
+;---------------------------------------
+FSK_DECODE0X06:		;Message waiting(06-03-42-42-42-31/06-03-6F-6F-6F-AA)
+	LCALL	GetCidData
+	XOR	A,@0X03
+	JPNZ	FSK_DECODE_ERROREND
+	LCALL	GetCidData
+	MOV	TEMP0,A
+	XOR	A,@0X42
+	JPNZ	FSK_DECODE0X06_OFF
+	;LCALL	GetCidData
+	;XOR	A,@0X42
+	;JPNZ	FSK_DECODE0X06_OFF
+	;LCALL	GetCidData
+	;XOR	A,@0X42
+	;JPNZ	FSK_DECODE0X06_OFF
+	;LCALL	GetCidData
+	;XOR	A,@0X31
+	;JPNZ	FSK_DECODE0X06_OFF
+;Message waiting(06-03-42----42-42-31)				
+	JMP	FSK_DECODE_0X82ON	;VisualIndicator:Activate
+FSK_DECODE0X06_OFF:
+	MOV	A,TEMP0
+	XOR	A,@0X6F
+	JPNZ	FSK_DECODE_ERROREND
+;(06-03-6F----6F-6F-AA)	
+	JMP	FSK_DECODE_0X82OFF	;VisualIndicator:Deactivate
+
+;---------------------------------------
+FSK_DECODE0X82:		;Message waiting(82-03-0B-01-FF-70/82-03-0B-01-00-6F)
+FSK_DECODE0X80:	
+FSK_DECODE0X8X:
+	CALL	GET_OFFSET
+FSK_DECODE0X8X_DETIME:	;-------------------------------------------------------
+;---Time
+	MOV	A,@CIDTIME_FLAG		;Set length of time
+	MOV	_RC,A
+	MOV	A,@4
+	MOV	_RD,A
+;---
+	MOV	_RC,@TIMETYPE
+	MOV	A,_RD
+	JPZ	FSK_DECODE0X8X_NOTIME	;Time exist?
+	ADD	A,@2
+	MOV	OFFSET_S,A
+	MOV	OFFSET_D,@CIDTIME_START
+	CALL	TIME_DECODE
+;---Update the RTC
+	BANK	0
+	MOV	_RC,@CIDTIME_START
+	MOV	A,_RD
+	MOV	B0_MON_REG,A	;month
+	INC	_RC
+	
+	MOV	A,_RD
+	MOV	B0_DAY_REG,A	;day
+	INC	_RC
+
+	MOV	A,_RD
+	MOV	B0_HOUR_REG,A	;hour
+	INC	_RC
+
+	MOV	A,_RD
+	MOV	B0_MIN_REG,A	;minute
+	JMP	FSK_DECODE0X8X_DENUM
+FSK_DECODE0X8X_NOTIME:
+	BANK	0
+	
+	MOV	_RC,@CIDTIME_START
+
+	MOV	A,B0_MON_REG	;month
+	MOV	_RD,A
+	INC	_RC
+	
+	MOV	A,B0_DAY_REG	;day
+	MOV	_RD,A
+	INC	_RC
+
+	MOV	A,B0_HOUR_REG	;hour
+	MOV	_RD,A
+	INC	_RC
+	
+	MOV	A,B0_MIN_REG	;minute
+	MOV	_RD,A
+FSK_DECODE0X8X_DENUM:	;-------------------------------------------------------
+;---Num
+	MOV	_RC,@CIDNUM_FLAG
+	CLR	_RD			;Clean length of num first
+
+	MOV	_RC,@NUMTYPE
+	MOV	A,_RD
+	JPZ	FSK_DECODE0X8X_DENAME	;Number exist?
+	ADD	A,@1
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	COUNT,A			;the count
+	
+	INCA	_RC
+	MOV	OFFSET_S,A		;source address
+	MOV	OFFSET_D,@CIDNUM_START	;destin address
+
+	MOV	A,@CIDNUM_FLAG		;Set length of num
+	MOV	_RC,A
+	MOV	A,COUNT
+	MOV	_RD,A
+FSK_DECODE0X8X_NUMLOOP:
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	LCALL	CIDNUM_VERIFY	;检查并转化成机内码
+	MOV	TEMP0,A
+	
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	INC	OFFSET_S
+	INC	OFFSET_D
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	FSK_DECODE0X8X_NUMLOOP
+FSK_DECODE0X8X_DENAME:	;-------------------------------------------------------
+;---Name
+	MOV	_RC,@CIDNAME_FLAG
+	CLR	_RD			;Clean length of name first
+;---
+	MOV	_RC,@NAMETYPE
+	MOV	A,_RD
+	JPZ	FSK_DECODE0X8X_END	;Name exist?
+	ADD	A,@1
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	COUNT,A
+	SUB	A,@15
+	JPC	FSK_DECODE0X8X_DENAME_LENCHK
+	
+	MOV	COUNT,@15	;长度大于15,取15位
+FSK_DECODE0X8X_DENAME_LENCHK:	
+	
+	INCA	_RC
+	MOV	OFFSET_S,A
+	MOV	OFFSET_D,@CIDNAME_START
+	
+	MOV	A,@CIDNAME_FLAG		;Set length of name
+	MOV	_RC,A
+	MOV	A,COUNT
+	MOV	_RD,A
+FSK_DECODE0X8X_NAMELOOP:
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	LCALL	CIDCHAR_VERIFY	;检查并转化成机内码
+	MOV	TEMP0,A
+	
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	INC	OFFSET_S
+	INC	OFFSET_D
+	
+	DEC	COUNT
+	
+	MOV	A,COUNT
+	JPNZ	FSK_DECODE0X8X_NAMELOOP
+FSK_DECODE0X8X_END:	;-------------------------------------------------------
+FSK_DECODE0X04_END:
+	
+	MOV	A,@0
+	CALL	SET_CIDTYPE
+
+	RETL	@0	;Normal CID
+;------	
+FSK_DECODE_0X82ON:	;0x06/0x82
+	MOV	A,@3
+	CALL	SET_CIDTYPE
+	
+	RETL	@3
+;------
+FSK_DECODE_0X82OFF:	;0x06/0x82
+	MOV	A,@4
+	CALL	SET_CIDTYPE
+	
+	RETL	@4
+;------
+FSK_DECODE_ERROREND:	;error
+	MOV	A,@2
+	CALL	SET_CIDTYPE
+	
+	RETL	@2
+
+;-------------------------------------------------------------------------------
+;	TIME_DECODE
+;	input : OFFSET_S = the source offset
+;		OFFSET_D = the destination offset
+;-------------------------------------------------------------------------------
+TIME_DECODE:
+
+	CLR	COUNT
+TIME_DECODE_LOOP:
+	CLRC
+	RLCA	COUNT
+	ADD	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	AND	A,@0X0F
+	MOV	TEMP0,A
+	SWAP	TEMP0
+	INC	_RC
+
+	MOV	A,_RD
+	AND	A,@0X0F
+	OR	A,TEMP0
+	LCALL	DGT_HEX
+	MOV	TEMP0,A
+;---	
+	MOV	A,COUNT
+	ADD	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	INC	COUNT
+	MOV	A,COUNT
+	SUB	A,@4
+	JPNZ	TIME_DECODE_LOOP	;loop 4 times
+
+	RET
+;-------------------------------------------------------------------------------
+;	对ASCII数字(0x30..0X0x39)进行合法性检查并转化成机内码,超出范围的视同空数字
+;-------------------------------------------------------------------------------
+CIDNUM_VERIFY:
+	AND	A,@0X7F
+	MOV	TEMP0,A
+	
+	;MOV	A,TEMP0	
+	SUB	A,@(0X30-1)
+	JPC	CIDNUM_VERIFY_NO
+	MOV	A,TEMP0
+	SUB	A,@0X39
+	JPNC	CIDNUM_VERIFY_NO
+;---0X30..0X39	
+	MOV	A,@CASCDelta		;转换成机内码
+	SUB	A,TEMP0
+	
+	RET
+CIDNUM_VERIFY_NO:
+	MOV	A,@NUM_BLANK
+	RET
+;-------------------------------------------------------------------------------
+;	对ASCII字符进行合法性检查并转化成机内码,超出范围(0x20..0X0x7f)的视同空字符
+;-------------------------------------------------------------------------------
+CIDCHAR_VERIFY:
+	AND	A,@0X7F
+	MOV	TEMP0,A
+
+	;MOV	A,TEMP0	
+	SUB	A,@0X20	;(0X20-空格)
+	JPC	CIDCHAR_VERIFY_NO
+
+	MOV	A,@CASCDelta		;转换成机内码
+	SUB	A,TEMP0
+	
+	
+	RET
+CIDCHAR_VERIFY_NO:
+	MOV	A,@NUM_BLANK
+	
+	RET
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+;	GET_OFFSET
+;	input : 
+;		1-Time/2-3-4-Num/7-8-Name
+;		OFFSET_S = the first source offset
+;		OFFSET_D = the first destin offset
+;	for 
+;-------------------------------------------------------------------------------
+GET_OFFSET:
+;---Clean first
+	MOV	_RC,@TIMETYPE
+	CLR	_RD
+	MOV	_RC,@NUMTYPE
+	CLR	_RD
+	MOV	_RC,@NAMETYPE
+	CLR	_RD
+;---	
+	MOV	A,@(CID_TYPE+2)
+	MOV	OFFSET_S,A
+GET_OFFSET_LOOP:
+	MOV	_RC,@CID_LEN
+	MOV	A,_RD		;length
+	ADD	A,@CID_TYPE	;起始offset
+	SUB	A,OFFSET_S
+	JPC	GET_OFFSET_END
+
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	AND	A,@0X0F
+	MTBL
+	JMP	GET_OFFSET_END	;0 - Error
+	JMP	GET_OFFSET_1	;1 - Time
+	JMP	GET_OFFSET_2	;2 - Num
+	JMP	GET_OFFSET_3	;3 - Num
+	JMP	GET_OFFSET_4	;4 - Num
+	JMP	GET_OFFSET_END	;5 - Error
+	JMP	GET_OFFSET_END	;6 - Error
+	JMP	GET_OFFSET_7	;7 - Name
+	JMP	GET_OFFSET_8	;8 - Name
+	JMP	GET_OFFSET_END	;9 - Error
+	JMP	GET_OFFSET_END	;A - Error
+	JMP	GET_OFFSET_NEXT	;B - MessageWaiting
+	JMP	GET_OFFSET_END	;C - Error
+	JMP	GET_OFFSET_END	;D - Error
+	JMP	GET_OFFSET_END	;E - Error
+	JMP	GET_OFFSET_END	;F - Error
+	ENDT
+
+GET_OFFSET_1:
+	MOV	_RC,@TIMETYPE
+	MOV	A,OFFSET_S
+	MOV	_RD,A
+
+	MOV	_RC,A
+	JMP	GET_OFFSET_NEXT
+GET_OFFSET_2:
+GET_OFFSET_3:
+GET_OFFSET_4:
+	MOV	_RC,@NUMTYPE
+	MOV	A,OFFSET_S
+	MOV	_RD,A
+
+	MOV	_RC,A
+	JMP	GET_OFFSET_NEXT
+GET_OFFSET_7:
+GET_OFFSET_8:
+	MOV	_RC,@NAMETYPE
+	MOV	A,OFFSET_S
+	MOV	_RD,A
+
+	MOV	_RC,A
+	JMP	GET_OFFSET_NEXT
+GET_OFFSET_NEXT:
+	INC	_RC
+	MOV	A,_RD			;the length of the type
+	ADD	A,@2
+	ADD	OFFSET_S,A
+	JMP	GET_OFFSET_LOOP	
+GET_OFFSET_END:	
+	
+	RET
+
+;###############################################################################
+;       Function : COMP_ONETELNUM
+;将放在地址(OFFSET_S/OFFSET_D)处的数据进行比较
+;
+;	input  : OFFSET_S = 参与比较号码所在起始偏移地址(CID)
+;		 OFFSET_D = 参与比较号码所在起始偏移地址(PBOOK)
+;	OUTPUT : ACCH = 0/1 ---不相等/相等
+;
+;	variable : TEMP0,TEMP1,TEMP2
+;###############################################################################
+COMP_ONETELNUM:
+;---Get length(CID)
+	MOV	A,OFFSET_S
+	ADD	A,@NUM_FGOFFSET
+	MOV	_RC,A
+	MOV	A,_RD
+	JPZ	COMP_ONETELNUM_ENDNO	;the length <> 0
+	MOV	COUNT,A
+
+;---Get length(BOOK)	
+	MOV	A,OFFSET_D
+	ADD	A,@NUM_FGOFFSET
+	MOV	_RC,A
+	MOV	A,_RD
+	JPZ	COMP_ONETELNUM_ENDNO	;the length <> 0
+	SUB	A,COUNT
+	JPNZ	COMP_ONETELNUM_ENDNO
+;---the length is equal	
+COMP_ONETELNUM_0:
+;-
+	MOV	A,@NUM_OFFSET
+	ADD	OFFSET_S,A
+	MOV	A,@NUM_OFFSET
+	ADD	OFFSET_D,A
+COMP_ONETELNUM_LOOP:
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,_RD
+	SUB	A,TEMP0
+	JPNZ	COMP_ONETELNUM_ENDNO	;有一个不相等,退出
+
+	INC	OFFSET_D
+	INC	OFFSET_S
+	DEC	COUNT
+
+	MOV	A,COUNT
+	JPNZ	COMP_ONETELNUM_LOOP	
+
+COMP_ONETELNUM_ENDYES:		;比较完毕,没找到不相等的数据
+	
+	RETL	1
+	
+COMP_ONETELNUM_ENDNO:
+
+	RETL	0
+
+;############################################################################
+;       Function : COMP_ALLTELNUM
+;
+;Read the pbook from current group and compare it with CID.Return the TEL_ID/0
+;
+;	input  : ADDR_S = 参与比较号码的所在地址的基地址
+;	OUTPUT : ACCH = 0/!0 --没找到/找到的号码的序号
+;
+;!!!----Note : Num
+;
+;	variable:
+;############################################################################
+COMP_ALLTELNUM:
+	MOV	A,@GROUP_BOOK
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A
+	CLR	B1_MSG_ID
+
+	MOV	A,@M123_BUF_START
+	MOV	OFFSET_D,A	
+	MOV	A,@TEL_FLAG
+	MOV	OFFSET_S,A
+	
+	MOV	_RC,A
+	MOV	A,_RD
+	JPNZ	COMP_ALLTELNUM_END	;TEL-flag normal CID ?
+	MOV	A,@NUM_FLAG	
+	MOV	_RC,A
+	MOV	A,_RD
+	JPZ	COMP_ALLTELNUM_END	;NUM-flag length ?
+	
+	MOV	A,B1_CID_T
+	MOV	B1_MSG_ID,A
+COMP_ALLTELNUM_LOOP:		;先比较号码长度
+	MOV	A,B1_MSG_ID
+	JPZ	COMP_ALLTELNUM_END	;find fail
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	INC	OFFSET_D
+
+	MOV	A,TEMP1		;Error code
+	JPZ	COMP_ALLTELNUM_LOOP
+	LCALL	DAT_READ_STOP
+;---Read ok,then compare
+	MOV	A,@TEL_FLAG
+	MOV	OFFSET_S,A
+	MOV	A,@M123_BUF_START
+	MOV	OFFSET_D,A
+;---Do compare
+	CALL	COMP_ONETELNUM
+	OR	A,@0
+	JPNZ	COMP_ALLTELNUM_END
+;---Compared end but not equal,then next one
+	MOV	A,@TEL_FLAG
+	MOV	OFFSET_S,A
+	MOV	A,@M123_BUF_START
+	MOV	OFFSET_D,A
+
+	DEC	B1_MSG_ID
+	JMP	COMP_ALLTELNUM_LOOP	;号码内容不相等(查下一条)
+
+COMP_ALLTELNUM_END:
+	MOV	A,B1_MSG_ID
+
+	RET
+;############################################################################
+;       Function : SET_CIDTYPE
+;
+;	input : acc
+;	output:	no
+;
+;############################################################################
+SET_CIDTYPE:
+	MOV	TEMP0,A
+	
+	MOV	A,@CIDTEL_FLAG
+	MOV	_RC,A
+	MOV	A,TEMP0
+	MOV	_RD,A
+	
+	RET
+
+;-------------------------------------------------------------------------------

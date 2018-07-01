@@ -1,0 +1,340 @@
+;###############################################################################
+;       Function : TRSLTE_TABTODSP
+;	translate table-index to DSP-index
+;
+;	input  : acc
+;	output : acc
+;
+;	Change into block 3
+;###############################################################################
+TRSLATE_TABTODSP:
+	ADD	A,@IDXTAB_START
+	MOV	_RC,A
+	BLOCK	3
+
+	MOV	A,_RD
+	
+	RET
+;###############################################################################
+;       Function : COMP_ONETELNAME
+;	Compare the data at (OFFSET_S/OFFSET_D)equal or not
+;
+;	input  : OFFSET_S = 参与比较号码所在起始偏移地址(CID)
+;		 OFFSET_D = 参与比较号码所在起始偏移地址(PBOOK)
+;
+;	OUTPUT : ACCH = 0xff/0/1 ---小于/相等/大于
+;
+;	variable : TEMP0,TEMP1,TEMP2
+;
+;	用于PBOOK(按姓名)排序
+;###############################################################################
+COMP_ONETELNAME:
+;---Get length(s-name)
+	MOV	A,OFFSET_S
+	ADD	A,@NAME_FGOFFSET
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	COUNT,A
+	MOV	TEMP2,A
+	JPZ	COMP_ONETELNAME_END0XFF	;the length(source) <> 0
+;---Get length(d-name)	
+	MOV	A,OFFSET_D
+	ADD	A,@NAME_FGOFFSET
+	MOV	_RC,A
+	MOV	A,_RD
+	JPZ	COMP_ONETELNAME_END0X01	;the length(dest) <> 0
+	MOV	TEMP1,A
+
+	MOV	A,TEMP1
+	SUB	A,COUNT
+	JPNC	COMP_ONETELNAME_0
+;---Get the shorter(两长取短)	
+	MOV	A,TEMP1
+	MOV	COUNT,A
+COMP_ONETELNAME_0:
+	MOV	A,@NAME_OFFSET
+	ADD	OFFSET_S,A
+	MOV	A,@NAME_OFFSET
+	ADD	OFFSET_D,A
+COMP_ONETELNAME_LOOP:
+	MOV	A,OFFSET_S
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	
+	MOV	A,OFFSET_D
+	MOV	_RC,A
+	MOV	A,_RD
+	SUB	A,TEMP0
+	JPZ	COMP_ONETELNAME_LOOP_1	;等于,继续下一步
+	JPNC	COMP_ONETELNAME_END0XFF	;小于,退出
+	JMP	COMP_ONETELNAME_END0X01	;大于,退出
+COMP_ONETELNAME_LOOP_1:
+	INC	OFFSET_D
+	INC	OFFSET_S
+	DEC	COUNT
+
+	MOV	A,COUNT
+	JPNZ	COMP_ONETELNAME_LOOP
+;---Compare end(shorter length) 	
+	MOV	A,TEMP1	
+	SUB	A,TEMP2
+	JPZ	COMP_ONETELNAME_END0X00	;等于,退出
+	JPNC	COMP_ONETELNAME_END0XFF	;小于,退出
+	JMP	COMP_ONETELNAME_END0X01	;大于,退出
+
+;---Compare end(longer length) 
+COMP_ONETELNAME_END0X00:	;等于
+
+	RETL	@0
+	
+COMP_ONETELNAME_END0X01:	;大于
+
+	RETL	@1
+
+COMP_ONETELNAME_END0XFF:	;小于
+
+	RETL	@0xff
+
+;############################################################################
+;	IDXTAB_READ
+;	Read index-table from flash and store into block 2(0..119)
+;
+;	input : 
+;	output: 
+;
+;############################################################################
+IDXTAB_READ:
+;---New phonebook ok,then update the index-table	
+	MOV	A,@CGROUP_BOOKIDX
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+;---Read the 1-index	Read index-table start
+	MOV	OFFSET_D,@IDXTAB_START
+IDXTAB_READ_1LOOP:
+	MOV	A,@1
+	LCALL	DAT_READ
+	
+	BLOCK	3
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	IDXTAB_READ_1LOOP
+	PAGE	#(DAT_READ_STOP)
+	CALL	DAT_READ_STOP
+;---Read the 2-index
+	MOV	OFFSET_D,@(IDXTAB_START+60)
+IDXTAB_READ_2LOOP:
+	MOV	A,@2
+	LCALL	DAT_READ
+	
+	BLOCK	3
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	IDXTAB_READ_2LOOP
+	
+	LCALL	DAT_READ_STOP
+;Read index-table end
+	
+	RET
+	
+;############################################################################
+;	IDXTAB_WRITE
+;	Write index-table into flash and store into block 3(0..119)
+;
+;	input : 
+;	output: 
+;
+;############################################################################
+IDXTAB_WRITE:
+;---Index updated then write it into flash
+	MOV	A,@CGROUP_BOOKIDX
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+IDXTAB_WRITE_1:
+	MOV	A,@1
+	PAGE	#(DEL_TEL)
+	CALL	DEL_TEL
+	
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0
+	JPNZ	IDXTAB_WRITE_1		;Delete all old index
+	
+	;PAGE	#(TEL_GC_CHK)
+	;CALL	TEL_GC_CHK
+	
+	MOV	OFFSET_S,@IDXTAB_START
+	MOV	COUNT,@(60)
+IDXTAB_WRITE_1INTOFLASH:
+	BLOCK	3
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	LCALL	DAT_WRITE
+	
+	INC	OFFSET_S
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	IDXTAB_WRITE_1INTOFLASH
+	PAGE	#(DAT_WRITE_STOP)
+	CALL	DAT_WRITE_STOP
+;---
+	MOV	OFFSET_S,@(IDXTAB_START+60)
+	MOV	COUNT,@(60)
+IDXTAB_WRITE_2INTOFLASH:
+	BLOCK	3
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	LCALL	DAT_WRITE
+	
+	INC	OFFSET_S
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	IDXTAB_WRITE_2INTOFLASH
+
+	LCALL	DAT_WRITE_STOP
+	
+	RET
+;###############################################################################
+;	IDXTAB_ADD
+;
+;	input : 
+;	output:
+;
+;###############################################################################
+IDXTAB_ADD:
+	;MOV	A,@GROUP_BOOK
+	;PAGE	#(SET_GROUP)
+	;CALL	SET_GROUP
+
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A	;the .MAX index
+	;ADD	A,@1		;!!!The newest one index is not in table
+	MOV	B1_MSG_ID,A
+IDXTAB_ADD_COMP:	;!!!!开始比较,此步骤较费时O(N^2)
+	MOV	OFFSET_D,@M123_BUF_START	;
+	
+	DEC	B1_MSG_ID
+	MOV	A,B1_MSG_ID
+	JPZ	IDXTAB_ADD_COMPOVER	;没找到更大的
+;-----find tel-index
+	MOV	A,B1_MSG_ID
+	PAGE	#(TRSLATE_TABTODSP)
+	CALL	TRSLATE_TABTODSP
+	MOV	B1_YEAR_REG,A		;TEL-ID
+;---tel-index ok,then read the pbook	
+IDXTAB_ADD_READPBOOK_LOOP:
+	MOV	A,B1_YEAR_REG
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store into
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	IDXTAB_ADD_READPBOOK_LOOP
+	
+	PAGE	#(DAT_READ_STOP)
+	CALL	DAT_READ_STOP
+;-----read the pbook then comprate with new pbook
+	MOV	OFFSET_D,@M123_BUF_START	;
+	MOV	OFFSET_S,@TEL_FLAG	;
+	PAGE	#(COMP_ONETELNAME)
+	CALL	COMP_ONETELNAME
+	PAGE	#($)
+	
+	ADD	A,@1
+	JPC	IDXTAB_ADD_COMP		;小于(0XFF),就找下一个(大于或等于为止)
+
+IDXTAB_ADD_COMPOVER:		;!!!!比较,结束
+;---fund the index(-1),(about to index table)
+	INC	B1_MSG_ID
+IDXTAB_ADD_IDOK:
+;---Index ok then adjust the index-table	
+	BLOCK	3
+	MOV	A,@IDXTAB_START
+	ADD	A,B1_MSG_ID
+	MOV	OFFSET_S,A	;Source
+	MOV	B1_YEAR_REG,A	;Save it(temporary)
+;-
+	INCA	OFFSET_S
+	MOV	OFFSET_D,A	;Dest
+;-
+	MOV	A,B1_MSG_ID
+	SUB	A,B1_CID_T
+	JPZ	IDXTAB_ADD_ADJUST_OK
+	MOV	COUNT,A		;Counter
+
+	LCALL	MOVE_DATA
+IDXTAB_ADD_ADJUST_OK:
+;---
+	MOV	A,B1_MSG_ID
+	MOV	_RC,A
+	MOV	A,B1_CID_T
+	MOV	_RD,A
+
+	RET
+
+;###############################################################################
+;	IDXTAB_DEL
+;
+;	input : B1_MSG_ID = the specific TEL_ID
+;		B1_CID_T = The total number of pbook
+;	output:	
+;
+;###############################################################################
+IDXTAB_DEL:
+	MOV	A,B1_MSG_ID
+	ADD	A,@IDXTAB_START
+	MOV	OFFSET_D,A	;Dest
+	INCA	OFFSET_D
+	MOV	OFFSET_S,A	;Source
+
+	MOV	A,OFFSET_D	;!!!Current index
+	CALL	TRSLATE_TABTODSP	;translate the table-index to DSP-index	
+	MOV	B1_SEC_REG,A
+;-
+	INCA	B1_CID_T
+	MOV	B1_YEAR_REG,A
+	
+	MOV	A,B1_MSG_ID
+	SUB	A,B1_YEAR_REG	;!!!Note: B1_MSG_ID must comparate with the number of total tel-message before delete operation
+	JPZ	IDXTAB_DEL_MOVEOK
+	MOV	COUNT,A		;Counter
+
+	LCALL	MOVE_DATA
+IDXTAB_DEL_MOVEOK:	
+;-
+IDXTAB_DEL_LOOP:
+	DEC	B1_YEAR_REG
+
+	MOV	A,B1_YEAR_REG
+	JPZ	IDXTAB_DEL_END
+	MOV	_RC,A
+	MOV	A,_RD
+	SUB	A,B1_SEC_REG
+	
+	JPC	IDXTAB_DEL_ADJUST_OK
+	DEC	_RD
+IDXTAB_DEL_ADJUST_OK:
+	JMP	IDXTAB_DEL_LOOP
+IDXTAB_DEL_END:
+
+	RET
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------

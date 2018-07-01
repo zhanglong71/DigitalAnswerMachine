@@ -1,0 +1,1332 @@
+ORG	(10<<10)|(3<<8)
+;-------------------------------------------------------------------------------
+BOOK_FUNC:
+	BANK	1
+	
+	MOV	A,B1_PRO_VAR
+	AND	A,@0X07
+	MTBL
+	JMP	BOOK_FUNC_0	;0 - Enter
+	JMP	BOOK_FUNC_1	;1 - SEARCH/ADD select
+	JMP	BOOK_FUNC_2	;2 - SEARCH
+	JMP	BOOK_FUNC_3	;3 - ADD/edit number
+	JMP	BOOK_FUNC_4	;4 - ADD/edit name
+	JMP	BOOK_FUNC_END	;5 - reserved
+	JMP	BOOK_FUNC_END	;6 - reserved
+	JMP	BOOK_FUNC_END	;7 - reserved
+	ENDT
+;return
+BOOK_FUNC_END:	
+	LJMP	MAIN_LOOP
+;-------------------------------------------------------------------------------
+;	B1_PRO_VAR(2..0) - status
+;	B1_PRO_VAR(bit4) - flag EDIT/ADD(Need delete old one or not)
+;	B1_PRO_VAR(bit5) - DelAll-flag
+;	B1_PRO_VAR(bit6) - DelCur-flag
+;	B1_PRO_VAR(bit7) - offset-flag(5s/2 time out flag use to edit name,then goto next site)
+;-------------------
+;在编辑状态:
+;	B1_MSG_ID 表示正在编辑的条目号
+;	B1_CID_T表示正在编辑的条目的长度
+;在添加状态:
+;	B1_MSG_ID = 0 表示正在进行的是添加操作
+;	B1_CID_T表示正在编辑的条目的长度
+;-------------------------------------------------------------------------------
+BOOK_FUNC_0:
+
+	MOV	A,@CMSG_BOOK
+	SUB	A,B1_MSG
+	JPZ	BOOK_FUNC_0_BOOK
+		
+	MOV 	A,@CCID_EDIT
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_0_EDITCID
+		
+	JMP	BOOK_FUNC_END
+;---------------------------------------
+BOOK_FUNC_0_BOOK:
+	
+	MOV	A,@1		
+	MOV	B1_PRO_VAR,A	;
+	CLR	B1_MSG_N	;function value
+BOOK_FUNC_0_BOOK_1:
+	CLR	B1_PRO_VAR1
+	MOV	A,@CTMR500MS
+	LCALL	SET_TIMER
+	
+BOOK_FUNC_0_BOOK_2:		;Display
+
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;---------
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	
+	MOV	A,@34		;SEARCH
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@35		;ADD 
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	
+	JMP	BOOK_FUNC_END
+;---------------------------------------
+BOOK_FUNC_0_EDITCID:
+;---Clean Icon display
+	PAGE	#(VGA)
+	MOV	A,@~((1<<3)|(1<<2)|(1<<1)|(1<<0))	;"CALL","NEW","RET","MSG"
+	CALL	CLRVGASTAMP2
+;---Clean id display
+	MOV	A,@ID_BLANK
+	CALL	DISP_ID
+
+	MOV	A,@GROUP_BOOK
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	
+	CLR	B1_MSG_ID	;ADD(Edit an CID/..)
+BOOK_FUNC_0_EDIT:
+;---the tel-num display in the second line
+	LCALL	VGABLANKNUM2
+
+	BLOCK	1
+
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Len bigger than 15 ?
+	MOV	COUNT,A
+	SUB	A,@LENGTH2NDL
+	JPC	BOOK_FUNC_0_BOOKEDIT_2
+	
+	MOV	COUNT,@15
+BOOK_FUNC_0_BOOKEDIT_2:
+	MOV	BASE_ADDR,@0X10		;base
+	MOV	OFFSET_S,@NUM_START	;source
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination
+	PAGE	#(COPY_DATA)
+	CALL	COPY_DATA
+	
+	MOV	A,@CTMR500MS
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+	PAGE	#($)
+	CLR	B1_PRO_VAR1
+
+;---进入编辑状态
+	MOV	B1_PRO_VAR,@0X03
+	CLR	CURSOR	
+	BLOCK	1
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD
+	AND	A,@0X3F
+	MOV	B1_CID_T,A
+
+	JMP	BOOK_FUNC_END
+;-------------------------------------------------------------------------------
+BOOK_FUNC_1:
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_1_MKEY
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_1_TMR
+
+	JMP	BOOK_FUNC_END
+;---------------------------------------
+BOOK_FUNC_1_TMR:
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@20
+	JPZ	BOOK_FUNC_1_TMROUT
+	
+	MOV	A,@CTMR500MS
+	LCALL	SET_TIMER
+
+	REFURBISH_3RDL
+
+	JPB	B1_PRO_VAR1,0,BOOK_FUNC_0_BOOK_2
+;BOOK_FUNC_1_TMR_OFF:
+	MOV	A,@(STYLE_RIGHT)
+	JBS	B1_MSG_N,0
+	MOV	A,@(STYLE_LEFT)
+
+	PAGE	#(VGA)
+	CALL	VGACHAR
+	MOV	A,@33		;BLANK(SEARCH/ADD)
+	CALL	VGASTRING
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+
+	JMP	BOOK_FUNC_END
+;---------------------------------------
+BOOK_FUNC_1_MKEY:
+
+	MOV	A,@CKEY_PBK
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_1_MKEY_BOOK
+	
+	MOV	A,@CKEY_UP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_1_MKEY_UP
+	MOV	A,@CKEY_DWN
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_1_MKEY_DWN
+
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_1_MKEY_STP
+	
+	JMP	BOOK_FUNC_END
+;---------------------------------------
+BOOK_FUNC_1_MKEY_BOOK:
+	MOV	A,B1_MSG_N	;(0..1)
+	AND	A,@0x1
+	ADD	A,@2
+	MOV	B1_PRO_VAR,A	;(2..3)
+
+	MOV	A,@CMSG_INIT
+	LCALL	STOR_MSG
+
+	JMP	BOOK_FUNC_END
+;---------------------------------------
+BOOK_FUNC_1_MKEY_STP:
+BOOK_FUNC_1_TMROUT:
+	LCALL	CLR_PRO_STACK
+	CLR	B1_PRO_VAR
+	
+	MOV	A,@CMSG_INIT
+	LCALL	STOR_MSG
+
+	JMP	BOOK_FUNC_END
+
+;---------------------------------------
+BOOK_FUNC_1_MKEY_DWN:
+	MOV	TEMP1,@0
+	MOV	TEMP2,@1
+	
+	MOV	A,B1_MSG_N
+	LCALL	VALUE_DEC
+	MOV	B1_MSG_N,A
+	
+	JMP	BOOK_FUNC_0_BOOK_1
+;---------------------------------------
+BOOK_FUNC_1_MKEY_UP:
+	MOV	TEMP1,@0	;min
+	MOV	TEMP2,@1	;max
+	
+	MOV	A,B1_MSG_N
+	LCALL	VALUE_INC
+	MOV	B1_MSG_N,A
+
+	JMP	BOOK_FUNC_0_BOOK_1
+;-------------------------------------------------------------------------------
+BOOK_FUNC_2:
+	LJMP	BOOK_FUNC_2_FUNC
+BOOK_FUNC_3:
+	LJMP	BOOK_FUNC_3_FUNC
+BOOK_FUNC_4:
+	LJMP	BOOK_FUNC_4_FUNC
+;-------------------------------------------------------------------------------
+ORG	(11<<10)
+;-------------------------------------------------------------------------------
+BOOK_FUNC_2_FUNC:			;SEARCH
+	MOV	A,@CMSG_INIT
+	SUB	A,B1_MSG
+	JPZ	BOOK_FUNC_2_INIT
+	
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_2_MKEY
+	
+	MOV 	A,@CMSG_CKEY
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_2_CKEY
+
+	MOV 	A,@CMSG_BKEY
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_2_BKEY
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_2_TMR
+
+BOOK_FUNC_2_FUNC_END:
+BOOK_FUNC_3_FUNC_END:
+BOOK_FUNC_4_FUNC_END:
+	LJMP	MAIN_LOOP
+;---------------------------------------
+BOOK_FUNC_2_TMROUT:
+BOOK_FUNC_3_TMROUT:
+BOOK_FUNC_4_TMROUT:
+	
+	MOV	A,@CMSG_INIT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+
+	LCALL	CLR_PRO_STACK
+	CLR	B1_PRO_VAR
+	
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_INIT:
+	MOV	A,@CTMR1S
+	PAGE	#(SET_TIMER)
+	CALL	SET_TIMER
+	CLR	B1_PRO_VAR1
+	CLR	B1_MSG_ID
+	
+	MOV	A,@GROUP_BOOK
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A	;Total tel record
+	JPZ	BOOK_FUNC_2_INIT_EMPTY
+
+	MOV	B1_MSG_ID,@1
+BOOK_FUNC_2_BOOKLOOKUP:	
+;---translate the table-index to DSP-index
+	MOV	A,B1_MSG_ID
+	PAGE	#(TRSLATE_TABTODSP)
+	CALL	TRSLATE_TABTODSP
+	MOV	B1_YEAR_REG,A		;TEL-ID
+;---Read data
+	MOV	A,@GROUP_BOOK
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+
+	MOV	OFFSET_D,@DATA_ZONE_START
+BOOK_FUNC_2_BOOKREAD_LOOP:
+	MOV	A,B1_YEAR_REG
+	LCALL	DAT_READ
+	
+	MOV	_RC,OFFSET_D	;the address will be store
+	MOV	_RD,TEMP0	;the data
+	
+	INC	OFFSET_D	;next address
+	
+	MOV	A,TEMP1		;Error code
+	JPZ	BOOK_FUNC_2_BOOKREAD_LOOP
+	PAGE	#(DAT_READ_STOP)
+	CALL	DAT_READ_STOP
+BOOK_FUNC_2_BOOKDISP:
+;---LCD	blank	
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;---First line	
+	MOV	A,B1_MSG_ID
+	PAGE	#(DISP_ID)
+	CALL	DISP_ID
+	PAGE	#($)
+
+BOOK_FUNC_2_BOOKDISP_1:
+;---将数据复制到显示区
+;---号码在第二行显示
+	BLOCK	1
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	MOV	COUNT,A
+	
+	SUB	A,@LENGTH2NDL
+	JPC	BOOK_FUNC_2_BOOKDISP_2
+	
+	MOV	COUNT,@14
+BOOK_FUNC_2_BOOKDISP_2:
+	MOV	BASE_ADDR,@0X10		;base
+	MOV	OFFSET_S,@NUM_START	;source
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination
+	LCALL	COPY_DATA
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	SUB	A,@LENGTH2NDL
+	JPC	BOOK_FUNC_2_BOOKDISP_2_1
+;---more than 15,display it in two time	
+	BLOCK	0
+	MOV	_RC,@(LCD_2NDLINE+LENGTH2NDL-1)
+	MOV	_RD,@NUM_AMPERE
+	
+BOOK_FUNC_2_BOOKDISP_2_1:
+;---姓名在第三行显示
+	BLOCK	1	
+	MOV	_RC,@NAME_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X0F			;Can't bigger than 15
+	MOV	COUNT,A
+	
+	MOV	OFFSET_S,@NAME_START		;
+	MOV	OFFSET_D,@LCD_3RDLINE
+	LCALL	COPY_DATA
+;---刷新第二三行	
+	REFURBISH_2AND3L		
+	
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_INIT_EMPTY:
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+
+	MOV	A,@36		;EMPTY
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)	
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_MKEY:
+	
+	MOV	A,@CTMR2S
+	LCALL	SET_PTIMER	;
+
+	MOV	A,@CKEY_PBK
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_MKEY_BOOK
+	
+	MOV	A,@CKEY_UP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_MKEY_UP
+	MOV	A,@CKEY_DWN
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_MKEY_DWN
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_MKEY_STP
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_MKEY_DEL
+
+	MOV	A,@CKEY_SPK
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_MKEY_SPK
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_CKEY:
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_CKEY_DEL
+	
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_BKEY:
+	
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_2_BKEY_DEL
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_CKEY_DEL:
+	BS	B1_PRO_VAR,5
+	
+	MOV	A,B1_CID_T
+	JPZ	BOOK_FUNC_2_FUNC_END
+	
+	LJMP	OGM_FUNC_0_DELALL_DISP	;!!!!!!Display "delete all?"
+;---------------------------------------
+BOOK_FUNC_2_BKEY_DEL:
+	JPB	B1_PRO_VAR,5,BOOK_FUNC_2_FUNC_END	;Del all flag
+	
+	MOV	A,B1_MSG_ID
+	JPZ	BOOK_FUNC_2_FUNC_END
+	
+	MOV	A,B1_PRO_VAR
+	XOR	A,@(1<<6)
+	MOV	B1_PRO_VAR,A		;Delete flag
+
+	JPNB	B1_PRO_VAR,6,BOOK_FUNC_2_FUNC_END	;Don't clean the flag when do delete,it can avoid set delete-flag after delete key release in doing delete
+	
+	LJMP	OGM_FUNC_0_DELONE_DISP
+;---------------------------------------
+BOOK_FUNC_2_MKEY_SPK:
+	RTC_DISP_ENABLE
+
+	MOV	A,@CDIAL_OUT
+	PAGE	#(STOR_MSG)
+	CALL	STOR_MSG
+
+	PAGE	#(CLR_PRO_STACK)
+	CALL	CLR_PRO_STACK
+	PAGE	#($)
+
+	CLR	B1_PRO_VAR
+	
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_MKEY_STP:
+BOOK_FUNC_3_MKEY_STP:
+BOOK_FUNC_4_MKEY_STP:	
+	MOV	A,@1
+	MOV	B1_MSG_N,A	;function value
+	MOV	B1_PRO_VAR,A
+	LJMP	BOOK_FUNC_0_BOOK_1
+;---------------------------------------
+BOOK_FUNC_2_MKEY_DEL:		;Confirm the delete action
+	JPB	B1_PRO_VAR,5,BOOK_FUNC_2_MKEY_DO_DELALL
+	JPB	B1_PRO_VAR,6,BOOK_FUNC_2_MKEY_DO_DELONE
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_MKEY_DO_DELONE:
+;---Delete
+	MOV	A,B1_MSG_ID
+	PAGE	#(TRSLATE_TABTODSP)
+	CALL	TRSLATE_TABTODSP
+	PAGE	#(DEL_TEL)
+	CALL	DEL_TEL
+
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A	;Total tel record
+;---Change index-table
+	PAGE	#(IDXTAB_DEL)
+	CALL	IDXTAB_DEL
+	CALL	IDXTAB_WRITE
+;-	
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+;---
+	PAGE	#(VGA)
+	CALL	VGABLANKCHAR
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+	MOV	A,@47		;DELETE...
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+	
+	MOV	A,B1_MSG_ID
+	SUB	A,B1_CID_T
+	JPC	BOOK_FUNC_2_MKEY_BOOK_LOOKUP
+	
+	CLR	B1_MSG_ID
+	JMP	BOOK_FUNC_2_MKEY_BOOK_LOOKUP	
+;---------------------------------------
+BOOK_FUNC_2_MKEY_DO_DELALL:	;!!!Update index-table is no need
+	
+	PAGE	#(DEL_TEL)
+	MOV	A,@1
+	CALL	DEL_TEL
+	
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	PAGE	#($)
+	MOV	A,TEMP0
+	JPNZ	BOOK_FUNC_2_MKEY_DO_DELALL	;Delete until no tel exist
+	
+	PAGE	#(TEL_GC_CHK)
+	CALL	TEL_GC_CHK
+	PAGE	#($)
+	
+	CLR	B1_CID_T	;Total tel record
+	CLR	B1_MSG_ID
+	
+	JMP	BOOK_FUNC_2_MKEY_BOOK_LOOKUP
+;---------------------------------------
+BOOK_FUNC_2_MKEY_UP:
+
+	MOV	TEMP1,@0	;min
+	MOV	TEMP2,B1_CID_T	;max
+	
+	MOV	A,B1_MSG_ID
+	LCALL	VALUE_INC
+	MOV	B1_MSG_ID,A
+
+	JMP	BOOK_LOOKUP
+;---------------------------------------
+BOOK_FUNC_2_MKEY_DWN:
+	
+	MOV	TEMP1,@0	;min
+	MOV	TEMP2,B1_CID_T	;max
+	
+	MOV	A,B1_MSG_ID
+	LCALL	VALUE_DEC
+	MOV	B1_MSG_ID,A
+	
+	;JMP	BOOK_LOOKUP
+BOOK_LOOKUP:	
+	BC	B1_PRO_VAR,6		;Clear Del flag
+BOOK_FUNC_2_MKEY_BOOK_LOOKUP:
+	CLR	B1_PRO_VAR1
+
+	MOV	A,B1_CID_T
+	JPZ	BOOK_FUNC_2_INIT_EMPTY
+	MOV	A,B1_MSG_ID
+	JPNZ	BOOK_FUNC_2_BOOKLOOKUP
+BOOK_FUNC_2_MKEY_BOOK_ENDLIST:
+	
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+;---First line index	
+	MOV	A,@ID_BLANK
+	CALL	DISP_ID
+;-third line
+	MOV	A,@(STYLE_CENTER)
+	CALL	VGACHAR
+
+	MOV	A,@37		;END
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@38		;OF
+	CALL	VGASTRING
+	MOV	A,@(CH_BLANK)
+	CALL	VGACHAR
+	MOV	A,@39		;LIST
+	CALL	VGASTRING
+;-
+	MOV	A,@(CH_END)
+	CALL	VGACHAR
+	CALL	VGADRAWCHAR
+	PAGE	#($)
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_TMR:
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@10
+	JPZ	BOOK_FUNC_2_TMROUT	;10s time out
+	
+	MOV	A,B1_MSG_ID
+	JPZ	BOOK_FUNC_2_FUNC_END	;End of list
+	
+;---号码在第二行显示
+	BLOCK	1
+	
+	MOV	_RC,@NUM_FLAG
+	MOV	A,_RD			;count
+	AND	A,@0X3F			;Can't bigger than 15
+	MOV	COUNT,A
+	SUB	A,@LENGTH2NDL
+	JPC	BOOK_FUNC_2_FUNC_END	;Less than 15 or equ 15,no need two times display
+;---More than 15 byte	
+	LCALL	VGABLANKNUM2
+	
+	JPNB	B1_PRO_VAR1,0,BOOK_FUNC_2_TMR_1
+	
+	MOV	COUNT,@14
+	MOV	BASE_ADDR,@0X10		;base
+	MOV	OFFSET_S,@NUM_START	;source
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination
+	LCALL	COPY_DATA
+;---End with"-"
+	BLOCK	0
+	MOV	_RC,@(LCD_2NDLINE+LENGTH2NDL-1)
+	MOV	_RD,@NUM_AMPERE
+
+	JMP	BOOK_FUNC_2_FUNC_END
+;-------------------
+BOOK_FUNC_2_TMR_1:
+	MOV	A,@(LENGTH2NDL-1)
+	SUB	COUNT,A
+
+	MOV	BASE_ADDR,@0X10		;base
+	MOV	OFFSET_S,@(NUM_START+LENGTH2NDL-1)	;source
+	MOV	OFFSET_D,@(LCD_2NDLINE+1)	;destination
+	LCALL	COPY_DATA
+;---Start with"-"
+	BLOCK	0
+	MOV	_RC,@(LCD_2NDLINE)
+	MOV	_RD,@NUM_AMPERE
+	
+	JMP	BOOK_FUNC_2_FUNC_END
+;---------------------------------------
+BOOK_FUNC_2_MKEY_BOOK:
+	MOV	A,B1_CID_T
+	JPZ	BOOK_FUNC_2_MKEY_STP	;No data in phonebook
+	
+	MOV	A,B1_MSG_ID
+	JPZ	BOOK_FUNC_2_FUNC_END	;LCD display "END OF LIST",can't edit
+	
+	LJMP	BOOK_FUNC_0_EDIT
+
+;-------------------------------------------------------------------------------
+BOOK_FUNC_3_FUNC:			;ADD/Edit number
+
+	MOV	A,@CMSG_INIT
+	SUB	A,B1_MSG
+	JPZ	BOOK_FUNC_3_INIT
+	
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_3_MKEY
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_3_TMR
+
+	JMP	BOOK_FUNC_3_FUNC_END
+;---------------------------------------
+BOOK_FUNC_3_INIT:			;ADD number(Edit num can't goto here)
+	PAGE	#(VGA)
+	CALL	VGABLANKNUM2
+	CALL	VGABLANKCHAR
+	PAGE	#($)
+;---清空编辑区	
+	BLOCK	1
+	MOV	_RC,@DATA_ZONE_START	;起点
+	MOV	COUNT,@(DATA_ZONE_END-DATA_ZONE_START)	;长度
+	MOV	A,@0			;填充值
+	LCALL	STOR_DATA
+	CLR	CURSOR
+	CLR	B1_PRO_VAR1
+	CLR	B1_CID_T	;初始长度为0
+	CLR	B1_MSG_ID
+	JMP	BOOK_FUNC_3_FUNC_END
+;---------------------------------------
+BOOK_FUNC_3_MKEY:
+	CLR	B1_PRO_VAR1
+	
+	MOV	A,@CKEY_PBK
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_3_MKEY_BOOK
+	
+	MOV	A,@CKEY_UP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_3_MKEY_UP
+	MOV	A,@CKEY_DWN
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_3_MKEY_DWN
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_3_MKEY_DEL
+	MOV	A,@CKEY_RP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_3_MKEY_RP
+
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_3_MKEY_STP
+
+	LCALL	DIALKEY_CHK
+	JPC	BOOK_FUNC_3_MKEY_NUM	;Num 
+
+	JMP	BOOK_FUNC_3_FUNC_END
+;---------------------------------------
+BOOK_FUNC_3_MKEY_RP:
+	MOV	A,@NUM_P
+	;JMP	BOOK_FUNC_3_MKEY_NUM
+;-----------------------------
+BOOK_FUNC_3_MKEY_NUM:
+	MOV	B1_MSG_N,A
+;-Save data
+	BLOCK	1
+	MOV	A,@NUM_START	;起点
+	ADD	A,CURSOR	;偏移
+	MOV	_RC,A
+	MOV	_RD,B1_MSG_N
+;-length adjust	
+	MOV	A,B1_CID_T
+	SUB	A,@24
+	JPZ	BOOK_FUNC_3_MKEY_NUM_1
+	MOV	A,B1_CID_T
+	SUB	A,CURSOR
+	JPNZ	BOOK_FUNC_3_MKEY_NUM_1
+	
+	INC	B1_CID_T
+BOOK_FUNC_3_MKEY_NUM_1:
+;-cursor adjust	
+	MOV	A,CURSOR
+	SUB	A,@23
+	JPZ	BOOK_FUNC_3_MKEY_NUM_2
+
+	INC	CURSOR
+BOOK_FUNC_3_MKEY_NUM_2:
+;-----------------------------
+BOOK_FUNC_3_MKEY_NUM_DISP:		;when cursor at the right side
+	LCALL	VGABLANKNUM2
+	MOV	BASE_ADDR,@0X10	
+	
+	MOV	A,@LENGTH2NDL
+	SUB	A,CURSOR
+	JPC	BOOK_FUNC_3_MKEY_NUM_DISP_RSIDE	;在一次能显示的范围之外,只显示后面的15个
+;---光标偏移少于(或等于)15
+BOOK_FUNC_3_MKEY_NUM_DISP_NORMAL:
+	MOV	COUNT,B1_CID_T	
+	
+	MOV	A,B1_CID_T
+	SUB	A,@LENGTH2NDL		;Check length
+	JPC	BOOK_FUNC_3_DISP_NORMAL_1
+	
+	MOV	COUNT,@LENGTH2NDL
+BOOK_FUNC_3_DISP_NORMAL_1:	
+;---长度少于(或等于)15
+	MOV	OFFSET_S,@NUM_START	;source address
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination address		
+	LCALL	COPY_DATA
+	
+	JMP	BOOK_FUNC_3_FUNC_END
+;-----------------------------
+BOOK_FUNC_3_MKEY_NUM_DISP_RSIDE:	;长度大于或等于15
+
+	ADD	A,@(NUM_START+1)
+	MOV	OFFSET_S,A		;source address(Note! this method use cursor in the right side of LCD)
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination address
+	MOV	COUNT,@(LENGTH2NDL-1)	;length
+	LCALL	COPY_DATA	
+
+	JMP	BOOK_FUNC_3_FUNC_END
+;-----------------------------------------------------------
+BOOK_FUNC_3_MKEY_BOOK:
+	MOV	A,B1_CID_T
+	JPZ	BOOK_FUNC_END		;号码有效长度为0,不能进入姓名编辑状态
+;-Save the length first
+	BLOCK	1
+	MOV	_RC,@NUM_FLAG
+	MOV	A,B1_CID_T
+	;OR	A,@0X80
+	MOV	_RD,A
+
+	LCALL	VGABLANKNUM2
+	MOV	BASE_ADDR,@0X10	
+	
+	MOV	TEMP1,@LENGTH2NDL
+		
+	;MOV	A,@LENGTH2NDL
+	SUB	A,B1_CID_T
+	JPC	BOOK_FUNC_3_MKEY_BOOK_1	;在一次能显示的范围之外,只显示前面的15个
+;---长度少于(或等于)15
+	MOV	TEMP1,B1_CID_T
+	
+BOOK_FUNC_3_MKEY_BOOK_1:
+
+	MOV	OFFSET_S,@NUM_START	;source address
+	MOV	OFFSET_D,@LCD_2NDLINE	;destination address
+	MOV	COUNT,TEMP1		;length
+	LCALL	COPY_DATA	
+;---
+	CLR	CURSOR
+	
+	BLOCK	1
+	MOV	_RC,@NAME_FLAG
+	MOV	A,_RD
+	AND	A,@0X0F
+	MOV	B1_CID_T,A		;the name length
+	
+	MOV	B1_CID_N,@0XFF		;tell that the first key at edit name
+	CLR	B1_PRO_VAR1
+	MOV	A,@0X04
+	MOV	B1_PRO_VAR,A
+
+	JMP	BOOK_FUNC_3_FUNC_END
+;-----------------------------------------------------------
+BOOK_FUNC_3_MKEY_DWN:	
+	MOV	A,CURSOR
+	SUB	A,@23
+	JPZ	BOOK_FUNC_3_FUNC_END	;达到允许最大值
+
+	MOV	A,B1_CID_T
+	SUB	A,CURSOR
+	JPZ	BOOK_FUNC_3_FUNC_END	;达到实际最大值的下一位(偏移+1=长度)
+		
+	INC	CURSOR
+	
+	JMP	BOOK_FUNC_3_MKEY_NUM_DISP
+;---------------------------------------
+BOOK_FUNC_3_MKEY_UP:
+	
+	MOV	A,CURSOR
+	JPZ	BOOK_FUNC_3_FUNC_END	;达到允许最小值
+
+	DEC	CURSOR
+	JMP	BOOK_FUNC_3_MKEY_NUM_DISP
+;---------------------------------------
+BOOK_FUNC_3_MKEY_DEL:		;删除当前值(将以CURSOR+1指向值为起点,23-CURSOR为长度的值前移一个byte,然后CURSOR也前移一个byte)
+	
+	MOV	A,CURSOR
+	JPZ	BOOK_FUNC_3_MKEY_DEL_1	;起点位置
+;---
+	BLOCK	1
+
+	INCA	CURSOR
+	ADD	A,@NUM_START
+	MOV	OFFSET_S,A	;source address
+
+	DECA	OFFSET_S
+	MOV	OFFSET_D,A	;destination address
+
+	MOV	A,CURSOR
+	SUB	A,@24
+	MOV	COUNT,A		;move length
+;---	
+	MOV	A,CURSOR	;Check if it in right side of string(the cursor is blank),if so move cursor only
+	SUB	A,B1_CID_T
+	JPZ	BOOK_FUNC_3_MKEY_DEL_0
+
+	LCALL	MOVE_DATA
+;---	
+	DEC	B1_CID_T	;length
+BOOK_FUNC_3_MKEY_DEL_0:
+	DEC	CURSOR		;cursor offset
+;---
+	JMP	BOOK_FUNC_3_MKEY_NUM_DISP
+BOOK_FUNC_3_MKEY_DEL_1:		;起点位置为0
+	MOV	A,B1_CID_T
+	JPZ	BOOK_FUNC_3_FUNC_END	;总长度为0
+	
+	BLOCK	1
+
+	MOV	OFFSET_S,@(NUM_START+1)	;source address
+	MOV	OFFSET_D,@NUM_START	;destination address
+	MOV	COUNT,B1_CID_T
+	LCALL	MOVE_DATA
+;---	
+	DEC	B1_CID_T	;length
+;---
+	JMP	BOOK_FUNC_3_MKEY_NUM_DISP
+;---------------------------------------
+BOOK_FUNC_3_TMR:				;闪烁(闪烁点一定小于等于LENGTH2NDL,即编辑点靠右)
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@20
+	JPZ	BOOK_FUNC_3_TMROUT	
+BOOK_FUNC_3_BLINK:				;刷新闪烁点
+;---find blink site
+	MOV	TEMP1,@(LENGTH2NDL-1)
+	
+	MOV	A,@LENGTH2NDL
+	SUB	A,CURSOR
+	JPC	BOOK_FUNC_3_TMR_BLINKSITE	;找LCD闪烁点
+
+	MOV	TEMP1,CURSOR
+BOOK_FUNC_3_TMR_BLINKSITE:
+	MOV	TEMP0,@NUM_BLANK
+	
+	JPNB	B1_PRO_VAR1,0,BOOK_FUNC_3_TMR_BLINKDATA
+
+	MOV	TEMP0,@NUM__
+	
+	MOV	A,B1_CID_T
+	SUB	A,CURSOR
+	JPC	BOOK_FUNC_3_TMR_BLINKDATA	;找闪烁位置(CURSOR小于长度时,当前有效值闪烁;CURSOR等于长度时,"_"闪烁)
+;---Get the data
+	BLOCK	1
+	MOV	A,@NUM_START
+	ADD	A,CURSOR
+	MOV	_RC,A
+	MOV	TEMP0,_RD
+
+BOOK_FUNC_3_TMR_BLINKDATA:
+
+	BLOCK	0
+	MOV	A,@LCD_2NDLINE	;base
+	ADD	A,TEMP1		;offset
+	MOV	_RC,A
+	MOV	_RD,TEMP0	;data
+
+	REFURBISH_2NDL
+
+	JMP	BOOK_FUNC_3_FUNC_END
+;-------------------------------------------------------------------------------
+BOOK_FUNC_4_FUNC:			;ADD name
+	MOV 	A,@CMSG_MKEY
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_4_MKEY
+	
+	MOV 	A,@CMSG_TMR
+	SUB 	A,B1_MSG
+	JPZ 	BOOK_FUNC_4_TMR
+	
+	JMP	BOOK_FUNC_4_FUNC_END
+;---------------------------------------
+;In this function 
+;	B1_MSG		=the current key value	
+;	B1_MON_REG	=the repeat count
+;	B1_MSG_N	=the char-code(the value we need)
+;	B1_CID_T	=the length of the number
+;	B1_CID_N	=the last key value
+;	CURSOR		=the cursor offset
+;
+;---------------------------------------
+BOOK_FUNC_4_MKEY:
+	
+	MOV	A,@CKEY_PBK
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_4_MKEY_BOOK
+	
+	MOV	A,@CKEY_UP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_4_MKEY_UP
+	MOV	A,@CKEY_DWN
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_4_MKEY_DWN
+	MOV	A,@CKEY_DEL
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_4_MKEY_DEL
+	MOV	A,@CKEY_STP
+	LCALL	KEY_CHK
+	JPNC	BOOK_FUNC_4_MKEY_STP
+
+	LCALL	DIALKEY_CHK
+	JPC	BOOK_FUNC_4_MKEY_DILNUM	;Num 
+	
+	JMP	BOOK_FUNC_4_FUNC_END
+;---------------------------------------
+BOOK_FUNC_4_MKEY_DILNUM:
+	MOV	B1_MSG,A	;Save the Key value(except *,#)
+
+	MOV	A,B1_CID_N
+	XOR	A,@0XFF
+	JPZ	BOOK_FUNC_4_MKEY_FIRST
+;-Not first char
+;---Check it is the same key(compare with last key)
+	MOV	A,B1_CID_N
+	SUB	A,B1_MSG
+	JPZ	BOOK_FUNC_4_MKEY_NUM	;Same KEY
+;---Different Key
+	CLR	B1_MON_REG	;Clean the counter
+;---reflush cursor
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@4
+	JPNC	BOOK_FUNC_4_MKEY_NUM	;5s time out(>=5)
+
+	MOV	A,CURSOR
+	SUB	A,@(LENGTH3RDL-1)
+	JPZ	BOOK_FUNC_4_MKEY_NUM	;Different Key but the cursor is in the right side
+	
+	JPB	B1_PRO_VAR,7,BOOK_FUNC_4_MKEY_NUM	;UP/DOWN key pressed don't update cursor offset
+;---the condition(different key/less than 5s/not in the right side/DOWN,UP,DEL key pressed) is ok, then goto the next site
+	INC	CURSOR			;reflush cursor
+	JMP	BOOK_FUNC_4_MKEY_NUM
+
+BOOK_FUNC_4_MKEY_FIRST:			;Enter just now
+	CLR	B1_MON_REG		;Clean the counter
+;-----------------------------
+BOOK_FUNC_4_MKEY_NUM:
+	CLR	B1_PRO_VAR1		;Only num key can clear the counter(for cursor goto next site)
+
+	BC	B1_PRO_VAR,7	;Reset flag, Enable update offset
+
+	MOV	A,B1_MSG		;Save the key-value
+	MOV	B1_CID_N,A
+	
+	MOV	A,B1_MON_REG
+	MOV	TEMP1,A
+	MOV	A,B1_CID_N
+	LCALL	GET_KEYCAHR
+	MOV	B1_MSG_N,A
+	MOV	B1_MON_REG,TEMP1		;!!!!!
+
+	INC	B1_MON_REG		;increase the counter after num-key pressed
+;-Save data
+	BLOCK	1
+	MOV	A,@NAME_START		;Start address
+	ADD	A,CURSOR		;offset address
+	MOV	_RC,A
+	MOV	_RD,B1_MSG_N
+;-length adjust	
+	MOV	A,B1_CID_T
+	SUB	A,@15
+	JPZ	BOOK_FUNC_4_MKEY_NUM_2
+	MOV	A,B1_CID_T
+	SUB	A,CURSOR
+	JPNZ	BOOK_FUNC_4_MKEY_NUM_2
+	
+	INC	B1_CID_T
+BOOK_FUNC_4_MKEY_NUM_2:
+;-----------------------------
+BOOK_FUNC_4_MKEY_NUM_DISP:		;when cursor at the right side
+	PAGE	#(VGABLANKCHAR)
+	CALL	VGABLANKCHAR
+	MOV	BASE_ADDR,@0X10	
+
+	MOV	OFFSET_S,@NAME_START	;source address
+	MOV	OFFSET_D,@LCD_3RDLINE	;destination address
+	MOV	COUNT,B1_CID_T		;length
+	LCALL	COPY_DATA	
+	
+	JMP	BOOK_FUNC_4_FUNC_END
+;---------------------------------------
+BOOK_FUNC_4_MKEY_BOOK:	
+;---the length
+	BLOCK	1
+	MOV	_RC,@NAME_FLAG
+	MOV	A,B1_CID_T
+	MOV	_RD,A
+;---Display
+	PAGE	#(VGABLANKCHAR)
+	CALL	VGABLANKCHAR
+	MOV	BASE_ADDR,@0X10	
+
+	MOV	OFFSET_S,@NAME_START	;source address
+	MOV	OFFSET_D,@LCD_3RDLINE	;destination address
+	MOV	COUNT,B1_CID_T		;length
+	PAGE	#(COPY_DATA)
+	CALL	COPY_DATA	
+;---
+	CLR	CURSOR
+	CLR	B1_PRO_VAR1
+	CLR	B1_CID_T
+	MOV	B1_PRO_VAR,@0X04
+	PAGE	#(CLR_TIMER)
+	CALL	CLR_TIMER
+	
+	MOV	A,@GROUP_BOOK
+	PAGE	#(SET_GROUP)
+	CALL	SET_GROUP
+	PAGE	#($)
+	
+	MOV	A,B1_MSG_ID
+	JPZ	BOOK_FUNC_4_CHKMEM	;Is it in edit status ?
+;---Edit status delete old one first
+	MOV	A,B1_MSG_ID
+	PAGE	#(TRSLATE_TABTODSP)
+	CALL	TRSLATE_TABTODSP
+	PAGE	#(DEL_TEL)
+	CALL	DEL_TEL	
+	
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A	;Total tel record
+	
+	PAGE	#(IDXTAB_DEL)
+	CALL	IDXTAB_DEL
+	CALL	IDXTAB_WRITE
+;!!!!!!	
+BOOK_FUNC_4_CHKMEM:	
+	
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	SUB	A,@(CMAX_BOOK-1)
+	JPNC	BOOK_FUNC_4_MEMFUL	;Over the maxumer number
+;???????????????????????????????????????
+/*
+	PAGE	#(SET_INITTEL0IDX)
+	CALL	SET_INITTEL0IDX
+*/
+;???????????????????????????????????????
+
+	MOV	OFFSET_S,@DATA_ZONE_START		;start address
+	MOV	COUNT,@(DATA_ZONE_END-DATA_ZONE_START)	;length(58bytes)
+BOOK_FUNC_4_MKEY_BOOK_INTOFLASH:
+	BLOCK	1
+	
+	MOV	_RC,OFFSET_S
+	MOV	A,_RD
+	LCALL	DAT_WRITE
+	
+	INC	OFFSET_S
+	
+	DEC	COUNT
+	MOV	A,COUNT
+	JPNZ	BOOK_FUNC_4_MKEY_BOOK_INTOFLASH
+	
+BOOK_FUNC_4_MKEY_BOOK_INTOFLASH_END:
+	PAGE	#(DAT_WRITE_STOP)
+	CALL	DAT_WRITE_STOP
+	
+	PAGE	#(GET_TELT)
+	CALL	GET_TELT
+	MOV	A,TEMP0
+	MOV	B1_CID_T,A	;the total number
+;---update the index-table	
+	PAGE	#(IDXTAB_ADD)
+	CALL	IDXTAB_ADD
+	CALL	IDXTAB_WRITE
+
+	MOV	A,@CTMR2S
+	LCALL	SET_TIMER
+
+	MOV	A,@1
+	MOV	B1_MSG_N,A
+	MOV	B1_PRO_VAR,A
+	JMP	BOOK_FUNC_4_FUNC_END
+;-------------------
+BOOK_FUNC_4_MEMFUL:
+	JMP	BOOK_FUNC_4_FUNC_END
+;---------------------------------------
+BOOK_FUNC_4_MKEY_DWN:
+	BS	B1_PRO_VAR,7	;Set flag, don't update offset
+	CLR	B1_PRO_VAR1	;Clean time counter
+	CLR	B1_MON_REG	;Clean key counter
+	
+	MOV	A,CURSOR
+	SUB	A,@14
+	JPZ	BOOK_FUNC_4_FUNC_END	;达到允许最大值
+	
+	MOV	A,B1_CID_T
+	SUB	A,CURSOR
+	JPZ	BOOK_FUNC_4_FUNC_END	;达到实际最大值的下一位(偏移+1=长度)
+	
+	INC	CURSOR
+	
+	JMP	BOOK_FUNC_4_MKEY_NUM_DISP
+;---------------------------------------
+BOOK_FUNC_4_MKEY_UP:
+
+	BS	B1_PRO_VAR,7	;Set flag, don't update offset
+	CLR	B1_PRO_VAR1	;Clean time counter
+	CLR	B1_MON_REG	;Clean key counter
+	
+	MOV	A,CURSOR
+	JPZ	BOOK_FUNC_4_FUNC_END	;达到允许最小值
+
+	DEC	CURSOR
+
+	JMP	BOOK_FUNC_4_MKEY_NUM_DISP
+;---------------------------------------
+BOOK_FUNC_4_MKEY_DEL:
+	BS	B1_PRO_VAR,7	;Set flag, don't update offset
+	CLR	B1_PRO_VAR1	;Clean time counter
+	CLR	B1_MON_REG	;Clean key counter
+	
+	MOV	A,CURSOR
+	JPZ	BOOK_FUNC_4_MKEY_DEL_1	;起点位置
+	
+	BLOCK	1
+
+	INCA	CURSOR
+	ADD	A,@NAME_START
+	MOV	OFFSET_S,A	;source address
+
+	DECA	OFFSET_S
+	MOV	OFFSET_D,A	;destination address
+
+	MOV	A,CURSOR
+	SUB	A,@15
+	MOV	COUNT,A		;length
+
+	LCALL	MOVE_DATA
+;---	
+	DEC	CURSOR		;cursor offset
+	DEC	B1_CID_T	;length
+;---
+	JMP	BOOK_FUNC_4_MKEY_NUM_DISP
+BOOK_FUNC_4_MKEY_DEL_1:		;起点位置为0
+	
+	MOV	A,B1_CID_T
+	JPZ	BOOK_FUNC_4_FUNC_END	;总长度为0
+	
+	BLOCK	1
+
+	MOV	OFFSET_S,@(NAME_START+1)	;source address
+	MOV	OFFSET_D,@NAME_START	;destination address
+	MOV	COUNT,B1_CID_T
+	LCALL	MOVE_DATA
+;---	
+	DEC	B1_CID_T	;length
+;---
+	JMP	BOOK_FUNC_4_MKEY_NUM_DISP
+;---------------------------------------
+BOOK_FUNC_4_TMR:
+	INC	B1_PRO_VAR1
+	
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@20
+	JPZ	BOOK_FUNC_4_TMROUT
+;---check reflush cursor	
+	MOV	A,B1_CID_N
+	SUB	A,@0XFF
+	JPZ	BOOK_FUNC_4_TMR_1	;Enter just now(Can't update cursor offset)
+
+	MOV	A,B1_PRO_VAR1
+	SUB	A,@5
+	JPNZ	BOOK_FUNC_4_TMR_1	;5s time out
+	
+
+;---Check update cursor condition	
+	MOV	A,CURSOR
+	SUB	A,B1_CID_T	
+	JPNC	BOOK_FUNC_4_TMR_1	;in the end of number ?
+	
+	MOV	A,CURSOR
+	SUB	A,@(LENGTH3RDL-1)
+	JPZ	BOOK_FUNC_4_TMR_1	;in the right of side ?
+;
+	JPB	B1_PRO_VAR,7,BOOK_FUNC_4_TMR_1	;update cursor offset is forbiden
+	
+BOOK_FUNC_4_TMR_DISPALL:
+;Display all
+	PAGE	#(VGABLANKCHAR)
+	CALL	VGABLANKCHAR
+	MOV	BASE_ADDR,@0X10	
+
+	MOV	OFFSET_S,@NAME_START	;source address
+	MOV	OFFSET_D,@LCD_3RDLINE	;destination address
+	MOV	COUNT,B1_CID_T		;length
+	LCALL	COPY_DATA	
+
+	MOV	A,B1_MON_REG
+	AND	A,@0XF0
+	MOV	B1_MON_REG,A
+
+	INC	CURSOR			;reflush cursor
+BOOK_FUNC_4_TMR_1:
+;---find blink site	
+	MOV	TEMP1,@(LENGTH3RDL-1)
+
+	MOV	A,@(LENGTH3RDL-1)
+	SUB	A,CURSOR
+	JPC	BOOK_FUNC_4_TMR_BLINKSITE	;找LCD闪烁点
+
+	MOV	TEMP1,CURSOR
+BOOK_FUNC_4_TMR_BLINKSITE:
+;---the LCD-corsur on or not
+	MOV	TEMP0,@CH_BLANK
+	
+	JPNB	B1_PRO_VAR1,0,BOOK_FUNC_4_TMR_BLINKDATA	;even number then blank
+;---Now it is to time to on
+	MOV	TEMP0,@CH__
+	
+	MOV	A,B1_CID_T
+	SUB	A,CURSOR
+	JPC	BOOK_FUNC_4_TMR_BLINKDATA	;找闪烁位置(CURSOR小于长度时,当前有效值闪烁;CURSOR等于长度时,"_"闪烁)
+;---Get the data
+	BLOCK	1
+	MOV	A,@NAME_START
+	ADD	A,CURSOR
+	MOV	_RC,A
+	MOV	A,_RD
+	MOV	TEMP0,A
+	
+	SUB	A,@CH_BLANK	;
+	JPNZ	BOOK_FUNC_4_TMR_BLINKDATA
+	
+	MOV	TEMP0,@CH__
+;-
+BOOK_FUNC_4_TMR_BLINKDATA:
+
+	REFURBISH_3RDL
+
+	;BLOCK	0
+	MOV	A,@LCD_3RDLINE	;base
+	ADD	A,TEMP1		;offset
+	MOV	_RC,A
+	MOV	_RD,TEMP0	;data
+	
+	JMP	BOOK_FUNC_4_FUNC_END
+;-------------------------------------------------------------------------------
+	

@@ -1,0 +1,2 @@
+
+2009-9-5 在PowerTel-EnFrDe-v6-2506-200905181707.bin(PowerTel-EnFrDe-v6-3981-200905181706.hex)的基础上改 VOP(v1)

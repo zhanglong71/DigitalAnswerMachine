@@ -1,0 +1,620 @@
+ORG	(13<<10)	;the 11th page
+;-------------------------------------------------------------------------------
+;	第x个字符对应起始seg值(右起)
+;-------------------------------------------------------------------------------
+SEGSTAB_1NUM:
+	TBL
+	RETL	3
+	RETL	5
+	RETL	18
+	RETL	20
+	RETL	23
+	RETL	25
+	RETL	28
+	RETL	30
+	RETL	33
+	RETL	35
+;-------------------------------------------------------------------------------
+;	第x个字符对应起始seg值(右起)
+;-------------------------------------------------------------------------------
+SEGSTAB_2NUM:
+	TBL
+	RETL	0
+	RETL	3
+	RETL	5
+	RETL	8
+	RETL	10
+	RETL	13
+	RETL	15
+	RETL	18
+	RETL	20
+	RETL	23
+	RETL	25
+	RETL	28
+	RETL	30
+	RETL	33
+	RETL	35
+;-------------------------------------------------------------------------------
+;	第x个字符对应起始seg值(右起)
+;-------------------------------------------------------------------------------
+SEGSTAB_3MATRIX:
+	TBL
+	RETL	0	;0
+	RETL	7	;1
+	RETL	3	;2
+	RETL	12	;3
+	RETL	8	;4
+	RETL	17	;5
+	RETL	13	;6
+	RETL	22	;7
+	RETL	18	;8
+	RETL	27	;9
+	RETL	23	;10
+	RETL	32	;11
+	RETL	28	;12
+	RETL	37	;13
+	RETL	33	;14
+;-------------------------------------------------------------------------------
+;	第x个字符对应起始seg值(右起)
+;	将最高与最低信,次高与次低位对调
+;-------------------------------------------------------------------------------
+SEGSTAB_3ADJ:	;0/1/2/3/4 <==> 4/3/2/1/0
+	TBL
+	RETL	(0x00<<3)	;0 0000b
+	RETL	(0x10<<3)	;0 0001b
+	RETL	(0x08<<3)	;0 0010b
+	RETL	(0x18<<3)	;0 0011b
+	RETL	(0x04<<3)	;0 0100b
+	RETL	(0x14<<3)	;0 0101b
+	RETL	(0x0C<<3)	;0 0110b
+	RETL	(0x1C<<3)	;0 0111b
+	RETL	(0x02<<3)	;0 1000b
+	RETL	(0x12<<3)	;0 1001b
+	RETL	(0x0A<<3)	;0 1010b
+	RETL	(0x1A<<3)	;0 1011b
+	RETL	(0x06<<3)	;0 1100b
+	RETL	(0x16<<3)	;0 1101b
+	RETL	(0x0E<<3)	;0 1110b
+	RETL	(0x1E<<3)	;0 1111b
+	RETL	(0x01<<3)	;1 0000b
+	RETL	(0x11<<3)	;1 0001b
+	RETL	(0x09<<3)	;1 0010b
+	RETL	(0x19<<3)	;1 0011b
+	RETL	(0x05<<3)	;1 0100b
+	RETL	(0x15<<3)	;1 0101b
+	RETL	(0x0D<<3)	;1 0110b
+	RETL	(0x1D<<3)	;1 0111b
+	RETL	(0x03<<3)	;1 1000b
+	RETL	(0x13<<3)	;1 1001b
+	RETL	(0x0B<<3)	;1 1010b
+	RETL	(0x1B<<3)	;1 1011b
+	RETL	(0x07<<3)	;1 1100b
+	RETL	(0x17<<3)	;1 1101b
+	RETL	(0x0F<<3)	;1 1110b
+	RETL	(0x1F<<3)	;1 1111b
+;-------------------------------------------------------------------------------
+;	第x个字符对应起始seg值(右起)
+;	寻找第一个5*5方阵中各列对应的Seg
+;-------------------------------------------------------------------------------
+SEGSTAB_1STMATRIX:
+	TBL
+	RETL	0x40+0	
+	RETL	0x40+1
+	RETL	0x40+2
+	RETL	1
+	RETL	0
+/***************************************
+显示第一行标志
+
+.0		handset
+.1		spk
+.2		sencond
+.3		AM
+.4		PM
+.5		/
+.6		battery-low
+.7		mute
+
+第二个寄存器标示8个标志
+.0		MSG
+.1		RPT
+.2		NEW
+.3		CALL
+.4		1
+.5		reserved
+.6		reserved
+.7		reserved
+***************************************/
+DISP_STAMP:
+;---display the first line stamp in the first register
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP)
+	MOV	TEMP0,_RD
+
+	WR_STAMP	TEMP0,0,@(18+0X0),0,TEMP1	;handset	(seg-19th*comm-1th)
+	WR_STAMP	TEMP0,1,@(18+0X40),0,TEMP1	;SPK		(seg-19th*comm-9st)
+	WR_STAMP	TEMP0,2,@(33+0X0),0,TEMP1	;second		(seg-34th*comm-1th)
+	WR_STAMP	TEMP0,3,@(28+0X40),0,TEMP1	;AM		(seg-29th*comm-9th)
+	WR_STAMP	TEMP0,4,@(28+0X0),0,TEMP1	;PM		(seg-29th*comm-1th)
+	WR_STAMP	TEMP0,5,@(23+0X0),0,TEMP1	;/		(seg-24th*comm-1th)
+	WR_STAMP	TEMP0,6,@(12+0X40),1,TEMP1	;battery-low	(seg-13th*comm-10th)
+	WR_STAMP	TEMP0,7,@(13+0X40),2,TEMP1	;mute		(seg-14th*comm-11th)
+;---display the first line stamp in the second register
+	MOV	_RC,@(LCD_CTRL+OFFSETSTMP+1)
+	;MOV	_RC,@(LCD_CTRL+OFFSETSTMP)
+	MOV	TEMP0,_RD
+	
+	WR_STAMP	TEMP0,0,@(11+0X40),1,TEMP1	;MSG	(seg-12th*comm-10th)
+	WR_STAMP	TEMP0,1,@(11+0X40),2,TEMP1	;RPT	(seg-12th*comm-11th)
+	WR_STAMP	TEMP0,2,@(10+0X40),1,TEMP1	;NEW	(seg-11th*comm-10th)
+	WR_STAMP	TEMP0,3,@(10+0X40),2,TEMP1	;CALL	(seg-11th*comm-11th)
+	WR_STAMP	TEMP0,4,@(8+0X40),1,TEMP1	;1	(seg-9th*comm-10th)
+	;WR_STAMP	TEMP0,5,@(31+0X0),1,TEMP1
+	;WR_STAMP	TEMP0,6,@(32+0X0),1,TEMP1
+	;WR_STAMP	TEMP0,7,@(33+0X0),1,TEMP1
+	
+	RET
+;-------------------------------------------------------------------------------
+;	input : STAMP_REG(STAMP_BIT) - source-data
+;		LCD_ADDR(LCD_BIT) - Seg(comm-bit)
+;		STAMP_TEMP - temp memory
+;-------------------------------------------------------------------------------	
+WR_STAMP	MACRO	STAMP_REG,STAMP_BIT,@LCD_ADDR,LCD_BIT,STAMP_TEMP
+	MOV	A,@LCD_ADDR
+	IOW	_IOCB
+	MOV	_RC,A
+	MOV	STAMP_TEMP,_RD
+
+	BC	STAMP_TEMP,LCD_BIT
+	JBC	STAMP_REG,STAMP_BIT
+	BS	STAMP_TEMP,LCD_BIT
+	
+	MOV	A,STAMP_TEMP
+	IOW	_IOCC
+	MOV	_RD,A
+	ENDM
+
+;-------------------------------------------------------------------------------
+;	对数字(0..0X12)进行合法性检查超出范围的视同空数字
+;-------------------------------------------------------------------------------
+NUM_VERIFY:
+	;DISI
+	MOV	TEMP5,A
+	SUB	A,@0X62
+	JPC	NUM_VERIFY_RET
+	MOV	TEMP5,@NUM_BLANK
+NUM_VERIFY_RET:
+	MOV	A,TEMP5
+	;ENI
+	RET
+
+;---对字符(0..0X2F)进行合法性检查超出范围的视同空字符
+STR_VERIFY:
+	;DISI
+	MOV	TEMP5,A
+	SUB	A,@0X62
+	JPC	STR_VERIFY_RET
+	MOV	TEMP5,@CH_BLANK
+STR_VERIFY_RET:
+	MOV	A,TEMP5
+	;ENI
+	RET
+
+	
+/***************************************
+显示第一行的数字
+数字信息按顺序列在10个数字寄存器中
+
+	TEMP0	;待显示数字的位置.从右往左(对应第一行上的数字的序号)
+	TEMP1	;待显示数字的位置所对应的起始Seg值
+	TEMP2	;正在处理的当前待显示数字的Seg序号(=实际机器Seg序号－起始Seg序号TEMP1)
+	TEMP3	;待显示的字符值,及转换成字符值对应的段码
+	TEMP4	;临时存放TEMP3的值
+***************************************/
+DISP_NUM1:
+	CLR	TEMP0				;待显示的位置在LCD上的编号(左起)
+DISP_NUM1_LOOP:
+	CLR	TEMP1				;待显示的位置的seg起始地址
+	CLR	TEMP2				;待显示的位置的seg偏移
+;---Get data
+	MOV	A,TEMP0
+	SUB	A,@9
+	ADD	A,@(LCD_CTRL+OFFSETDATE)
+	MOV	_RC,A
+	MOV	TEMP3,_RD			; 得到需要显示的字符值
+;---Get display-code with specific data
+	ANDA	TEMP3,@0X7F
+	LCALL	SECOND_LINE_TAB
+	MOV	TEMP3,A				; 查表得到字符值对应的段码
+
+;---Get first Seg of data with specific site-offset
+	ADD	TEMP1,@0X40			; 字符在COM8~COM15，需要+40H的偏移地址
+	MOV	A,TEMP0
+	CALL	SEGSTAB_1NUM
+	ADD	TEMP1,A
+DISP_NUM1_LOOP_1:
+	MOV	TEMP4,TEMP3
+	JPB	TEMP0,0,DISP_NUM1_LOOP_ODD
+DISP_NUM1_LOOP_EVEN:			; 显示偶数位的数字
+;---偶数位排列同第一行的数字：232型排列: 0cbdgaef	cb0 dga ef0
+	ADDA	TEMP1,TEMP2
+	IOW	_IOCB
+	MOV	_RC,A
+	
+	MOV	A,TEMP2
+	JPZ	DISP_NUM1_LOOP_EVEN_1
+	SUBA	TEMP2,@1
+	JPZ	DISP_NUM1_LOOP_EVEN_2
+	SUBA	TEMP2,@2
+	JPZ	DISP_NUM1_LOOP_EVEN_3
+	;JMP	VIEW_ERR
+DISP_NUM1_LOOP_EVEN_1:
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	AND	TEMP4,@6
+	MOV	A,_RD
+	AND	A,@0XF9
+	OR	A,TEMP4
+	JMP	DISP_NUM1_LOOP_2
+DISP_NUM1_LOOP_EVEN_2:
+	RRC	TEMP4
+	RRC	TEMP4
+	AND	TEMP4,@7
+	MOV	A,_RD
+	AND	A,@0XF8
+	OR	A,TEMP4
+	JMP	DISP_NUM1_LOOP_2
+DISP_NUM1_LOOP_EVEN_3:
+	RLC	TEMP4
+	AND	TEMP4,@6
+	MOV	A,_RD
+	AND	A,@0XF9
+	OR	A,TEMP4
+	JMP	DISP_NUM1_LOOP_2
+
+DISP_NUM1_LOOP_ODD:
+; 奇数位排列规则为：133型排列: 0cbdgaef 00b cga def
+	ADDA	TEMP1,TEMP2
+	IOW	_IOCB
+	MOV	_RC,A
+	
+	MOV	A,TEMP2
+	JPZ	DISP_NUM1_LOOP_ODD_1
+	SUBA	TEMP2,@1
+	JPZ	DISP_NUM1_LOOP_ODD_2
+	SUBA	TEMP2,@2
+	JPZ	DISP_NUM1_LOOP_ODD_3
+	;JMP	VIEW_ERR
+DISP_NUM1_LOOP_ODD_1:
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	AND	TEMP4,@1
+	MOV	A,_RD
+	AND	A,@0XFE
+	OR	A,TEMP4
+	JMP	DISP_NUM1_LOOP_2
+DISP_NUM1_LOOP_ODD_2:
+	AND	_RD,@0XF8
+	RRC	TEMP4
+	RRC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@3
+	OR	_RD,A
+	RRC	TEMP4
+	RRC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@4
+	OR	A,_RD
+	JMP	DISP_NUM1_LOOP_2
+DISP_NUM1_LOOP_ODD_3:
+	AND	_RD,@0XF8
+	MOV	A,TEMP4
+	AND	A,@3
+	OR	_RD,A
+	RRC	TEMP4
+	RRC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@4
+	OR	A,_RD
+	JMP	DISP_NUM1_LOOP_2	
+DISP_NUM1_LOOP_2:
+	MOV	_RD,A
+	IOW	_IOCC
+	INC	TEMP2
+	SUBA	TEMP2,@3
+	JPNZ	DISP_NUM1_LOOP_1
+	INC	TEMP0
+	SUBA	TEMP0,@10
+	JPNZ	DISP_NUM1_LOOP
+	
+	RET
+
+
+/***************************************
+显示第二行的数字
+数字信息按顺序列在以(LCD_CTRL+12)开始的15个数字寄存器中
+***************************************/
+DISP_NUM2:
+	CLR	TEMP0				; 显示的位数
+VIEW_NUM2_LOOP:
+	CLR	TEMP1				;待显示的位置的seg起始地址
+	CLR	TEMP2				;待显示的位置的seg偏移
+;---Get data
+	MOV	A,TEMP0
+	SUB	A,@14
+	ADD	A,@(LCD_CTRL+OFFSET2NDL)
+	MOV	_RC,A
+	MOV	TEMP3,_RD			; 得到需要显示的字符
+
+	ANDA	TEMP3,@0X7F			; 得到需要显示的数字
+	LCALL	SECOND_LINE_TAB
+	MOV	TEMP3,A				; 查表得到字符对应的段码
+
+	MOV	A,TEMP0
+	CALL	SEGSTAB_2NUM
+	MOV	TEMP1,A
+VIEW_NUM2_LOOP_1:
+	MOV	TEMP4,TEMP3
+	JPNB	TEMP0,0,VIEW_NUM2_LOOP_EVEN
+VIEW_NUM2_LOOP_ODD:				; 显示偶数位的数字
+; 奇数数位排列同第一行的数字：232型排列: 0cbdgaef	cb0 dga ef0
+	ADDA	TEMP1,TEMP2
+	IOW	_IOCB
+	MOV	_RC,A
+	
+	MOV	A,TEMP2
+	JPZ	VIEW_NUM2_LOOP_EVEN_1
+	SUBA	TEMP2,@1
+	JPZ	VIEW_NUM2_LOOP_EVEN_2
+	SUBA	TEMP2,@2
+	JPZ	VIEW_NUM2_LOOP_EVEN_3
+	;JMP	VIEW_ERR
+VIEW_NUM2_LOOP_EVEN_1:
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	AND	TEMP4,@6
+	MOV	A,_RD
+	AND	A,@0XF9
+	OR	A,TEMP4
+	JMP	VIEW_NUM2_LOOP_2
+VIEW_NUM2_LOOP_EVEN_2:
+	RRC	TEMP4
+	RRC	TEMP4
+	AND	TEMP4,@7
+	MOV	A,_RD
+	AND	A,@0XF8
+	OR	A,TEMP4
+	JMP	VIEW_NUM2_LOOP_2
+VIEW_NUM2_LOOP_EVEN_3:
+	RLC	TEMP4
+	AND	TEMP4,@6
+	MOV	A,_RD
+	AND	A,@0XF9
+	OR	A,TEMP4
+	JMP	VIEW_NUM2_LOOP_2
+;-------------------------------------------------
+VIEW_NUM2_LOOP_EVEN:
+;偶数位排列规则为：133型排列: 0cbdgaef 00b cga def
+	ADDA	TEMP1,TEMP2
+	IOW	_IOCB
+	MOV	_RC,A
+	
+	MOV	A,TEMP2
+	JPZ	VIEW_NUM2_LOOP_ODD_1
+	SUBA	TEMP2,@1
+	JPZ	VIEW_NUM2_LOOP_ODD_2
+	SUBA	TEMP2,@2
+	JPZ	VIEW_NUM2_LOOP_ODD_3
+	;JMP	VIEW_ERR
+VIEW_NUM2_LOOP_ODD_1:
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	RRC	TEMP4
+	AND	TEMP4,@1
+	MOV	A,_RD
+	AND	A,@0XFE
+	OR	A,TEMP4
+	JMP	VIEW_NUM2_LOOP_2
+VIEW_NUM2_LOOP_ODD_2:
+	AND	_RD,@0XF8
+	RRC	TEMP4
+	RRC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@3
+	OR	_RD,A
+	RRC	TEMP4
+	RRC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@4
+	OR	A,_RD
+	JMP	VIEW_NUM2_LOOP_2
+VIEW_NUM2_LOOP_ODD_3:
+	AND	_RD,@0XF8
+	MOV	A,TEMP4
+	AND	A,@3
+	OR	_RD,A
+	RRC	TEMP4
+	RRC	TEMP4
+	MOV	A,TEMP4
+	AND	A,@4
+	OR	A,_RD
+	JMP	VIEW_NUM2_LOOP_2
+	
+VIEW_NUM2_LOOP_2:
+	MOV	_RD,A
+	IOW	_IOCC
+	INC	TEMP2
+	SUBA	TEMP2,@3
+	JPNZ	VIEW_NUM2_LOOP_1
+	INC	TEMP0
+	SUBA	TEMP0,@15
+	JPNZ	VIEW_NUM2_LOOP
+	
+	RET
+
+;-------------------------------------------------------------------------------
+;	刷新第三行的显示字符串
+;	字符串信息按顺序列在以(LCD_3RDLINE)开始的15个字符寄存器中
+;-------------------------------------------------------------------------------
+DISP_CHAR:
+	CLR	TEMP0				; 显示的位数序号(第三行有15位.从0开始,到14结束)
+DISP_CHAR_LOOP:
+	CLR	TEMP1				;待显示的位置的seg起始地址
+	CLR	TEMP2				;待显示的位置的seg偏移
+;---Get data
+	MOV	A,TEMP0
+	SUB	A,@14
+	ADD	A,@(LCD_CTRL+OFFSET3RDL)
+	MOV	_RC,A
+	MOV	A,_RD			; 得到需要显示的字符
+	CALL	STR_VERIFY
+	MOV	TEMP3,A
+	
+	AND	TEMP3,@0X7F
+	
+	JPB	TEMP0,0,DISP_CHAR_LOOP_ODD
+DISP_CHAR_LOOP_EVEN:				;0/2/4/6/8/10/12/14
+	ADD	TEMP1,@0X40			;+偏移
+DISP_CHAR_LOOP_ODD:				;1/3/5/7/9/11/13
+	MOV	A,TEMP0
+	CALL	SEGSTAB_3MATRIX			;得到需要显示的seg起始偏移地址
+	ADD	TEMP1,A
+;---------------------------------------
+DISP_CHAR_LOOP_2:
+	MOV	A,TEMP0
+	JPZ	DISP_CHAR_1MATRIX		;第一个5*5点阵单独处理
+;---------------------------------------
+	MOV	A,TEMP2
+	JPB	TEMP0,0,DISP_CHAR_LOOP_2_ODD
+DISP_CHAR_LOOP_2_EVEN:
+	ADD	A,TEMP1				;偏移TEMP2+起始列TEMP1 ＝ 实际地址
+	JMP	DISP_CHAR_LOOP_2_SETADDR
+DISP_CHAR_LOOP_2_ODD:
+	SUB	A,TEMP1
+DISP_CHAR_LOOP_2_SETADDR:
+	IOW	_IOCB
+	MOV	_RC,A
+	LINE_STR_TAB	TEMP3,TEMP2		;根据字符和所在点阵的列号得到在该列该字符的显示码。
+	MOV	TEMP4,A
+;---------------------------------------
+	MOV	A,TEMP0
+	JPZ	DISP_CHAR_ODD		;第一个5*5点阵单独处理
+
+	JPNB	TEMP0,0,DISP_CHAR_EVEN
+DISP_CHAR_ODD:
+
+	RRC	TEMP4
+	RRC	TEMP4
+	RRCA	TEMP4
+	AND	A,@0X1F
+	CALL	SEGSTAB_3ADJ
+	MOV	TEMP4,A
+DISP_CHAR_EVEN:
+
+	MOV	A,_RD
+	AND	A,@7
+	OR	A,TEMP4
+	IOW	_IOCC
+	MOV	_RD,A
+
+DISP_CHAR_DONE:
+	INC	TEMP2
+	SUBA	TEMP2,@5
+	JPNZ	DISP_CHAR_LOOP_2
+	
+	INC	TEMP0
+	SUBA	TEMP0,@15
+	JPNZ	DISP_CHAR_LOOP
+	
+	RET
+;---------------------------------------
+DISP_CHAR_1MATRIX:	
+
+	MOV	A,TEMP2
+	CALL	SEGSTAB_1STMATRIX
+	
+	JMP	DISP_CHAR_LOOP_2_SETADDR
+;-------------------------------------------------------------------------------
+;	input : STR - character(ASCII code)
+;		STR_ROW - line number
+;-------------------------------------------------------------------------------	
+LINE_STR_TAB	MACRO	STR,STR_ROW
+	MOV	A,STR_ROW
+	TBL
+	JMP	LINE_STR_TAB_1
+	JMP	LINE_STR_TAB_2
+	JMP	LINE_STR_TAB_3
+	JMP	LINE_STR_TAB_4
+	JMP	LINE_STR_TAB_5
+LINE_STR_TAB_1:
+	MOV	A,STR
+	PAGE	#(THIRD_LINE_TABA)
+	CALL	THIRD_LINE_TABA
+	PAGE	#($)
+	JMP	LINE_STR_TAB_RET
+LINE_STR_TAB_2:
+	MOV	A,STR
+	PAGE	#(THIRD_LINE_TABB)
+	CALL	THIRD_LINE_TABB
+	PAGE	#($)
+	JMP	LINE_STR_TAB_RET
+LINE_STR_TAB_3:
+	MOV	A,STR
+	PAGE	#(THIRD_LINE_TABC)
+	CALL	THIRD_LINE_TABC
+	PAGE	#($)
+	JMP	LINE_STR_TAB_RET
+LINE_STR_TAB_4:
+	MOV	A,STR
+	PAGE	#(THIRD_LINE_TABD)
+	CALL	THIRD_LINE_TABD
+	PAGE	#($)
+	JMP	LINE_STR_TAB_RET
+LINE_STR_TAB_5:
+	MOV	A,STR
+	PAGE	#(THIRD_LINE_TABE)
+	CALL	THIRD_LINE_TABE
+	PAGE	#($)
+	JMP	LINE_STR_TAB_RET
+LINE_STR_TAB_RET:
+	ENDM
+;-------------------------------------------------------------------------------
+LCD_DISP:
+	
+	;JPB	EVENT,7,LCD_DISP_RET	;???????????????????????????????????????
+	
+	BLOCK	0
+	BANK	1
+	MOV	_RC,@LCD_CTRL
+
+	JPB	_RD,4,LCD_DISP_STAMP
+	JPB	_RD,5,LCD_DISP_1STNUM
+	JPB	_RD,6,LCD_DISP_2NDNUM
+	JPB	_RD,7,LCD_DISP_3RDCHR
+	
+LCD_DISP_RET:
+
+	RET
+LCD_DISP_STAMP:
+	BC	_RD,4
+	LJMP	DISP_STAMP
+LCD_DISP_1STNUM:
+	BC	_RD,5
+	LJMP	DISP_NUM1
+LCD_DISP_2NDNUM:
+	BC	_RD,6
+	LJMP	DISP_NUM2
+LCD_DISP_3RDCHR:
+	BC	_RD,7
+	LJMP	DISP_CHAR
+
+;-------------------------------------------------------------------------------
+

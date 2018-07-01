@@ -1,0 +1,83 @@
+
+/*************************************************
+LCD部分
+*************************************************/
+LCD_Printf	MACRO	*String,#Line,@Mode
+	MOV	A,@Mode
+	IF	Line == 0
+		CALL	#VGA_STAMP
+	ELSEIF	Line == 1
+		CALL	#VGA_NUM1
+	ELSEIF	Line == 2
+		CALL	#VGA_NUM2
+	ELSEIF	Line == 3
+		CALL	#VGA_STR
+	ELSE
+		MESSAGE	"错误：显示超出"
+	ENDIF
+	MOV	_RC,@String
+	MOV	A,_RD
+	IF	Line == 0
+		CALL	#VGA_STAMP
+	ELSEIF	Line == 1
+		CALL	#VGA_NUM1
+	ELSEIF	Line == 2
+		CALL	#VGA_NUM2
+	ELSEIF	Line == 3
+		CALL	#VGA_STR
+	ELSE
+		MESSAGE	"错误：显示超出"
+	ENDIF
+	ENDM
+
+
+
+
+
+
+
+/*************************************************
+Caller ID部分
+*************************************************/
+COPYCIDRAM	MACRO	@SOURCE_ADDR,@TARGET_ADDR,@END_ADDR,@SIZE
+	MOV	TEMP0,@SOURCE_ADDR
+	MOV	TEMP1,@TARGET_ADDR
+	IF	END_ADDR != 0
+	MOV	TEMP2,@END_ADDR
+	ELSEIF	SIZE != 0
+	ADDA	TEMP0,@SIZE
+	MOV	TEMP2,A
+	ELSE
+		MESSAGE	"错误：操作数错误!"
+	ENDIF
+	CALL	#COPY_CIDRAM
+	ENDM
+
+COPYCIDRAM	MACRO	@SOURCE_ADDR,@TARGET_ADDR,@END_ADDR,SIZE
+	MOV	TEMP0,@SOURCE_ADDR
+	MOV	TEMP1,@TARGET_ADDR
+	IF	END_ADDR != 0
+	MOV	TEMP2,@END_ADDR
+	ELSEIF	SIZE != 0
+	ADDA	TEMP0,@SIZE
+	MOV	TEMP2,A
+	ELSE
+		MESSAGE	"错误：操作数错误!"
+	ENDIF
+	CALL	#COPY_CIDRAM
+	ENDM
+
+COPYCIDRAM	MACRO	@SOURCE_ADDR,@TARGET_ADDR,@END_ADDR,@SIZE
+	MOV	TEMP0,@SOURCE_ADDR
+	MOV	TEMP1,@TARGET_ADDR
+	IF	END_ADDR != 0
+	MOV	TEMP2,@END_ADDR
+	ELSEIF	SIZE != 0
+	ADDA	TEMP0,@SIZE
+	MOV	TEMP2,A
+	ELSE
+		MESSAGE	"错误：操作数错误!"
+	ENDIF
+	CALL	#COPY_CIDRAM
+	ENDM
+

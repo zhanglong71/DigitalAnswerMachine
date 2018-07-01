@@ -1,0 +1,171 @@
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------
+;------ BELOWS ARE FOR RING CHECKING (FREQUENCY RANGE : 14 - 100 Hz===###change 1 2 3 4) ---------
+RING_CHK:
+	BANK	2
+;---------------
+	MOV	A,B2_RING_TMR
+	XOR	A,@0XFF
+	JPZ	RING_CHK_1
+	INC	B2_RING_TMR
+RING_CHK_1:
+;---------------	
+	MOV	A,B2_RING_ID
+	AND	A,@0X0F
+	JPZ	RING_CHK_END
+	JPB	B2_RING_FLAG,7,RING_LOW_CHK		;check if in ring low state ?
+	JPB	B2_RING_FLAG,6,RING_HI_CHK		;check if in ring high state ?
+	JPB	B2_RING_FLAG,5,RING_OFF_CHK		;check if in ring off state ?
+        JPB	B2_RING_FLAG,4,RING_WAIT		;check if in ring wait state ?
+
+	JPB	_P9,1,RING_CHK_END			;check if the ring detector is low ?
+							;first check,only respond for low state
+	CLR	B2_RING_FLAG
+	BS	B2_RING_FLAG,7				;set in ring low state
+	CLR	B2_RING_TMR
+	
+	CLR	B2_BUF
+;-------------------------------------------------------------------------------
+RING_LOW_CHK:
+	MOV	A,B2_RING_TMR				;if B2_RING_TMR time out, the ring low time > 130ms
+	SUB	A,@120
+	JPNC	RING_OFF_CHK3
+	
+	JPNB	_P9,1,RING_CHK_END			;check if the ring detector is still low ? or the ring detector changes to high
+
+	MOV	A,B2_RING_TMR
+	MOV	B2_BUF1,A				 ;save ring low time in B2_BUF1	            	
+	CLR	B2_RING_TMR
+
+	BC	B2_RING_FLAG,7
+	BS	B2_RING_FLAG,6		    		;set in ring high state
+
+        JMP	RING_CHK_END
+;-------------------------------------------------------------------------------
+RING_HI_CHK:
+	MOV	A,B2_RING_TMR
+	SUB	A,@120
+	JPNC	RING_FAIL_CHK				;check if B2_RING_TMR is timed out ?
+	
+	JPB	_P9,1,RING_CHK_END	   		;check if the ring detector is still high		
+
+	MOV	A,B2_RING_TMR
+	ADD	B2_BUF1,A				;the (ring low time + ring high time)
+	CLR	B2_RING_TMR
+
+	MOV	A,B2_BUF1
+	SUB	A,@100
+	JPNC	RING_OFF_CHK3				;be sure that the (ring low time + ring high time) < 100 ms
+
+	MOV	A,B2_BUF1
+	SUB	A,@10					;be sure that the (ring low time + ring high time) > 10 ms
+	JPC	RING_OFF_CHK3
+;---ring pulse ok
+	BC	B2_RING_FLAG,6
+	BS	B2_RING_FLAG,7  			;set in ring low state
+
+	MOV	A,B2_RING_FLAG
+	AND	A,@0X0F
+	SUB	A,@3 					;check if the ring pulse number=4 ?
+	JPZ	RING_HI_CHK_1
+
+	INC	B2_RING_FLAG				;increase ring pulse ok
+RING_HI_CHK_1:
+	MOV	A,B2_RING_FLAG
+	AND	A,@0X0F
+	SUB	A,@3 					;check if the ring pulse number=4 ?
+	JPNZ	RING_CHK_END
+
+	MOV	A,B2_BUF1				;the pulse(low + high)time
+	ADD	B2_BUF,A				;the total time length of base ring pulse
+	JPC	RING_HI_CHK_GOTOOFF			;>255ms
+
+	MOV	A,B2_BUF
+	ADD	A,@(255-170)					;the ring pulse time length > 170(ms) ? (!!!误差10ms)
+	JPNC	RING_CHK_END
+
+RING_HI_CHK_GOTOOFF:
+;---change to the ring off state
+	CLR	B2_BUF
+	
+	CLR	B2_RING_FLAG
+	BS	B2_RING_FLAG,5	;set in ring off state
+	MOV	B2_RING_TMR2,@10 	;500 ms for min. ring off time
+
+	;MOV	A,@CRING_IN
+	;LCALL	INT_STOR_MSG
+
+        JMP	RING_CHK_END1
+;-------------------------------------------------------------------------------
+RING_OFF_CHK:
+	JPB	_P9,1,RING_OFF_CHK2
+
+	MOV	A,@10
+	MOV	B2_RING_TMR2,A  	;500 ms for min. ring off time
+					;if ring detector changes to low, restore and count again
+	JMP	RING_CHK_END
+RING_OFF_CHK2:
+	MOV	A,B2_RING_TMR2
+	JPNZ	RING_CHK_END
+
+	MOV	A,@0X10
+	ADD	B2_RING_ID,A
+
+RING_OFF_CHK3:				;ring off is finished
+        MOV	B2_RING_TMR2,@128	;B2_RING_TMR=8.0 sec for max. ring wait time	
+
+        BC	B2_RING_FLAG,5
+	BS	B2_RING_FLAG,4   	;set in ring wait state
+       			            	;one ring ok
+	MOV	A,B2_RING_ID           	;check if the accumulated ring number is
+	AND	A,@0X0F              	;equal to the target ring number ?
+	MOV	TEMP0,A
+
+	SWAPA	B2_RING_ID		;check if the accumulated ring number is
+	AND	A,@0X0F
+	SUB     TEMP0,A
+	JPZ	RING_CHK_END2
+
+        JMP	RING_CHK_END4
+;-------------------------------------------------------------------------------
+RING_WAIT:
+	JPB	_P9,1,RING_WAIT1
+			                     	;next ring starts
+	BC	B2_RING_FLAG,4
+	BS	B2_RING_FLAG,7		   	;set in ring low state
+
+	CLR	B2_RING_TMR
+	JMP	RING_LOW_CHK
+RING_WAIT1:
+	MOV	A,B2_RING_TMR2
+	JPNZ	RING_CHK_END	 		;if ring wait time > 8.0 sec, ring in fail
+;-------------------------------------------------------------------------------
+RING_FAIL_CHK:				;ring in fail check
+	CLR	B2_BUF
+	CLR	B2_RING_FLAG
+
+	MOV	A,B2_RING_ID
+	MOV	TEMP0,A
+	
+	MOV	A,B2_RING_ID         	;reset all flags of RING_ID
+        AND	A,@0X0F
+	MOV	B2_RING_ID,A
+	
+	SWAPA	TEMP0
+	AND	A,@0X0F
+	JPNZ	RING_CHK_END3
+	
+RING_CHK_END:                       	;not ring in ok
+	RETL	@0	;no
+
+RING_CHK_END1:
+	RETL	@1	;ring on
+
+RING_CHK_END2:
+	RETL	@2	;ring ok
+
+RING_CHK_END3:
+	RETL	@3	;ring fial	;从有铃流到8秒外无铃流
+RING_CHK_END4:
+	RETL	@4	;ring stop	;从有铃流到无铃流
+;-------------------------------------------------------------------------------

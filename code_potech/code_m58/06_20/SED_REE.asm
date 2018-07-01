@@ -1,0 +1,1015 @@
+
+.LIST
+
+;-------BELOWS ARE FOR SIO BETWEEN DSP AND 78806---------------------
+;BIOR:	bit4=SDI=dat(DSP<==>CPU,DSP R/T from this port)
+;	bit5=SDO=wr(CPU==>DSP,DSP receive command from this port,contral by CPU)
+;	bit6=TRX=clk(CPU==>DSP,DSP receive clock from this port,contral by CPU)
+;-------(记录各种状态标志)---------
+;TRS_FG:	bit0..3记录已传送/接收的位的个数(clk脉冲个数)
+;		bit4 = 0/1---CLK = HIGH/LOW
+;		bit5 = 1---下降沿触发,外部中断标志
+;		bit6 = 
+;		bit7 = 1---命令(可能是多字节命令)接收正在执行,接收标志
+;		bit8 =
+;		bit9 = 1---字节发送状态.(一个字节从bit7到bit0在此状态)
+;		bit10= 1---DSP有数据要求发送出去(从有发送意向到最后一个字节发送完毕)
+;		BIT11= 1---收发有效
+;		bit12= 1---
+;		bit13= 1---
+;TMR_TR:记录上次位传送到现在的时间间隔;当传完一字节后,记录的是上次字节到现在的时间
+;-------
+;SIO_CNT:	bit0..7记录已传送/接收的位的个数
+
+;		bit8..11记录已接收字节个数(接收状态)---或已发送的字节个数(发送状态)
+
+END_BYTE	.EQU   		10	;last bit to return idel(FOR DAT)
+REQ_SEND	.EQU   		24	;24==>3ms
+
+BYTE_BYTE	.EQU   		24	;last bit to next byte(3ms-1ms)
+END_SEND	.EQU   		64	;end of receive(8ms)
+
+;-------------------------------------------------------
+;	Function : RECEIVE
+;	receive data from BIOR.4
+;	receive from STARTBIT to bit7 to bit0 end in ENDBIT
+;-------------------------------------------------------
+RECEIVE:
+	BIT	TRS_FG,7
+	BZ	TB,RECEIVE_END2
+
+	LAC	RECE_BUF
+	SFL	1
+	SAH	RECE_BUF
+	
+	LIPK	0
+	CALL	DAT_IDEL
+	NOP
+	IN	C_RSIO1,BIOR
+	LAC	C_RSIO1
+	ANDL	0X010
+	SFR	4
+	OR	RECE_BUF	;receive data from BIOR.4 and store it in RECE_BUF.0
+	SAH	RECE_BUF
+
+	LAC	TRS_FG	;;;;;;;;;;;;;
+	ANDK	0X0F
+	SBHK	8
+	BZ	ACZ,RECEIVE_END1
+	
+	LAC	SIO_CNT
+	ADHL	0X0100
+	ANDL	0XFFF0
+	SAH	SIO_CNT		;received byte increase one(count11..8)
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG	;;;;;;;;;;;;;
+RECEIVE1:	
+;-------保存已收到的一个字节(若接收缓冲空间不够用,可继续往后增加)--------
+	LAC	SIO_CNT
+	SFR	8
+	SBHK	1
+	BS	ACZ,RECEIVE5
+	SBHK	1
+	BS	ACZ,RECEIVE6
+	SBHK	1
+	BS	ACZ,RECEIVE7
+	SBHK	1
+	BS	ACZ,RECEIVE8
+	SBHK	1
+	BS	ACZ,RECEIVE9
+	SBHK	1
+	BS	ACZ,RECEIVE10
+	SBHK	1
+	BS	ACZ,RECEIVE11
+	SBHK	1
+	BS	ACZ,RECEIVE12
+	SBHK	1
+	BS	ACZ,RECEIVE13
+	SBHK	1
+	BS	ACZ,RECEIVE14
+	SBHK	1
+	BS	ACZ,RECEIVE15
+	SBHK	1
+	BS	ACZ,RECEIVE16
+	SBHK	1
+	BS	ACZ,RECEIVE17
+	SBHK	1
+	BS	ACZ,RECEIVE18
+	SBHK	1
+	BS	ACZ,RECEIVE19
+	SBHK	1
+	BS	ACZ,RECEIVE20
+	SBHK	1
+	BS	ACZ,RECEIVE21
+	SBHK	1
+	BS	ACZ,RECEIVE22
+	SBHK	1
+	BS	ACZ,RECEIVE23
+	SBHK	1
+	BS	ACZ,RECEIVE24
+	SBHK	1
+	BS	ACZ,RECEIVE25
+	SBHK	1
+	BS	ACZ,RECEIVE26
+	SBHK	1
+	BS	ACZ,RECEIVE27
+	SBHK	1
+	BS	ACZ,RECEIVE28
+	SBHK	1
+	BS	ACZ,RECEIVE29
+	SBHK	1
+	BS	ACZ,RECEIVE30
+
+	BS	B1,RECEIVE_END1
+;-------将收到的数据存入缓存
+RECEIVE5:	;1st byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	XORL	0XB2
+	BS	ACZ,RECEIVE5_1_0
+RECEIVE5_0:	
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	XORL	0X96
+	BS	ACZ,RECEIVE5_1_1
+RECEIVE5_0_1:	
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	XORL	0X93
+	BS	ACZ,RECEIVE5_1_2
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	XORL	0X94
+	BS	ACZ,RECEIVE5_1_2
+	
+RECEIVE5_RECE:	
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF1
+	BS	B1,RECEIVE_END1
+RECEIVE5_1_0:
+	LACL	CSEG_PAUSE
+	CALL	INT_STOR_MSG
+	BS	B1,RECEIVE5_END
+RECEIVE5_1_1:
+	LACL	CMSG_KEY6S
+	CALL	INT_STOR_MSG
+	BS	B1,RECEIVE5_END	
+RECEIVE5_1_2:
+	CIO	11,OPTR			;优先响应OGM播放
+	SRAM	EVENT,2
+	BS	B1,RECEIVE5_RECE	
+RECEIVE5_END:	
+	CRAM	TRS_FG,7
+
+	LACK	0
+	SAH	SIO_CNT
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG
+	BS	B1,RECEIVE_END1
+
+RECEIVE6:	;2nd byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF1
+	SAH	RECE_BUF1
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE7:	;3rd byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF2
+	BS	B1,RECEIVE_END1
+RECEIVE8:	;4th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF2
+	SAH	RECE_BUF2
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE9:	;5th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF3
+	BS	B1,RECEIVE_END1
+RECEIVE10:	;6th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF3
+	SAH	RECE_BUF3
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE11:	;7th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF4
+	BS	B1,RECEIVE_END1
+RECEIVE12:	;8th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF4
+	SAH	RECE_BUF4
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE13:	;9th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF5
+	BS	B1,RECEIVE_END1
+RECEIVE14:	;10th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF5
+	SAH	RECE_BUF5
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE15:	;11th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF6
+	BS	B1,RECEIVE_END1
+RECEIVE16:	;12th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF6
+	SAH	RECE_BUF6
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE17:	;13th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF7
+	BS	B1,RECEIVE_END1
+RECEIVE18:	;14th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF7
+	SAH	RECE_BUF7
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE19:	;15th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF8
+	BS	B1,RECEIVE_END1
+RECEIVE20:	;16th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF8
+	SAH	RECE_BUF8
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE21:	;17th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF9
+	BS	B1,RECEIVE_END1
+RECEIVE22:	;18th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF9
+	SAH	RECE_BUF9
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE23:	;19th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF10
+	BS	B1,RECEIVE_END1
+RECEIVE24:	;20th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF10
+	SAH	RECE_BUF10
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE25:	;21th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF11
+	BS	B1,RECEIVE_END1
+RECEIVE26:	;22th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF11
+	SAH	RECE_BUF11
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE27:	;23th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF12
+	BS	B1,RECEIVE_END1
+RECEIVE28:	;24th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF12
+	SAH	RECE_BUF12
+	BS	B1,RECEIVE_END1
+;---
+RECEIVE29:	;25th byte
+	LAC	RECE_BUF
+	ANDL	0X0FF
+	SAH	RECE_BUF13
+	BS	B1,RECEIVE_END1
+RECEIVE30:	;26th byte
+	LAC	RECE_BUF
+	SFL	8
+	ANDL	0XFF00
+	OR	RECE_BUF13
+	SAH	RECE_BUF13
+	BS	B1,RECEIVE_END1
+;-------
+RECEIVE_END1:
+	LACK	0
+	SAH	TMR_TR		;位接收计时复位
+
+RECEIVE_END2:	
+	RET
+;-------------------------------------------------------
+;	Function : TRANSMIT
+;	send data from BIOR.4
+;	send frombit7 to bit0
+;-------------------------------------------------------
+TRANSMIT:
+	BIT	TRS_FG,9
+	BZ	TB,TRANSMIT_END1	
+	
+	CALL	SEND_BIT
+	
+	LAC	TRS_FG
+	ANDK	0X0F
+	SBHK	8
+	BZ	ACZ,TRANSMIT_END
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG	;;;;;;;;;;;;;
+	
+	LAC	SIO_CNT
+	ADHL	0X0100
+	SAH	SIO_CNT
+	SFR	8
+	ANDK	0X7F
+	SBH	RECE_QUEUE		;发送完了吗?
+	BZ	SGN,TRANSMIT_TEND
+	
+	LAC	SIO_CNT
+	SFR	8
+	SBHK	1
+	BS	ACZ,TRANSMIT_1		;第一byte发送完毕
+	SBHK	1
+	BS	ACZ,TRANSMIT_2		;第二byte发送完毕
+	SBHK	1
+	BS	ACZ,TRANSMIT_3
+	SBHK	1
+	BS	ACZ,TRANSMIT_4
+	SBHK	1
+	BS	ACZ,TRANSMIT_5
+	SBHK	1
+	BS	ACZ,TRANSMIT_6
+	SBHK	1
+	BS	ACZ,TRANSMIT_7
+	SBHK	1
+	BS	ACZ,TRANSMIT_8
+	SBHK	1
+	BS	ACZ,TRANSMIT_9
+	SBHK	1
+	BS	ACZ,TRANSMIT_10
+	SBHK	1
+	BS	ACZ,TRANSMIT_11
+	SBHK	1
+	BS	ACZ,TRANSMIT_12
+	SBHK	1
+	BS	ACZ,TRANSMIT_13
+	SBHK	1
+	BS	ACZ,TRANSMIT_14
+	SBHK	1
+	BS	ACZ,TRANSMIT_15
+	SBHK	1
+	BS	ACZ,TRANSMIT_16
+	SBHK	1
+	BS	ACZ,TRANSMIT_17
+	SBHK	1
+	BS	ACZ,TRANSMIT_18
+	SBHK	1
+	BS	ACZ,TRANSMIT_19
+	SBHK	1
+	BS	ACZ,TRANSMIT_20
+	SBHK	1
+	BS	ACZ,TRANSMIT_21
+	SBHK	1
+	BS	ACZ,TRANSMIT_22
+	SBHK	1
+	BS	ACZ,TRANSMIT_23		;第23-byte发送完毕
+	
+	BS	B1,TRANSMIT_TEND
+TRANSMIT_1:	;准备发送2nd byte
+	LAC	RECE_BUF1
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_2:	;准备发送3rd
+	LAC	RECE_BUF2
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_3:	;4th
+	LAC	RECE_BUF2
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_4:	;5th
+	LAC	RECE_BUF3
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_5:	;6th
+	LAC	RECE_BUF3
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_6:	;7th
+	LAC	RECE_BUF4
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_7:	;8th
+	LAC	RECE_BUF4
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_8:	;9th
+	LAC	RECE_BUF5
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_9:	;10th
+	LAC	RECE_BUF5
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_10:	;11th
+	LAC	RECE_BUF6
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_11:	;12th
+	LAC	RECE_BUF6
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_12:	;13th
+	LAC	RECE_BUF7
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_13:	;14th
+	LAC	RECE_BUF7
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_14:	;15th
+	LAC	RECE_BUF8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_15:	;16th
+	LAC	RECE_BUF8
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_16:	;17th
+	LAC	RECE_BUF9
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_17:	;18th
+	LAC	RECE_BUF9
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_18:	;19th
+	LAC	RECE_BUF10
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_19:	;20th
+	LAC	RECE_BUF10
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_20:	;21th
+	LAC	RECE_BUF11
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_21:	;22th
+	LAC	RECE_BUF11
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+;---
+TRANSMIT_22:	;23th
+	LAC	RECE_BUF12
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END
+TRANSMIT_23:	;24th
+	LAC	RECE_BUF12
+	SFR	8
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	BS	B1,TRANSMIT_END	
+		
+TRANSMIT_TEND:	
+	LACK	0
+	SAH	SIO_CNT
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG
+	
+	CRAM	TRS_FG,9		;发送完毕
+TRANSMIT_END:
+	LACK	0
+	SAH	TMR_TR
+	
+TRANSMIT_END1:	
+	RET
+;------------------------------------------------------
+;	Function : ERR_CHK
+;	若有传输任务,而又超过一定时间没有clk则报错
+;------------------------------------------------------
+ERR_CHK:
+	BIT	TRS_FG,5
+	BS	TB,ERR_CHK_END
+ERR_CHK1:	
+	BIT	TRS_FG,7
+	BS	TB,ERR_CHK_END		;接收时不查超时错
+	
+	BIT	TRS_FG,9
+	BZ	TB,ERR_CHK_END
+	
+	LAC	TMR_TR
+	SBHL	720
+	BS	SGN,ERR_CHK_END		;在接收状态距离上一位或开始90ms之外无脉冲
+	BZ	ACZ,ERR_CHK_END
+	
+	LACK	0
+	SAH	SIO_CNT
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG
+	
+	CRAM	TRS_FG,9 ;;;;;;;;;
+	;CALL	DAT_IDEL
+ERR_CHK_END:
+	RET
+;-------时钟部分,记录各时间等待,超时等------------------------------
+;-------------------------------------------------------------------
+C_SIO:
+	LDPK	0
+	LIPK	0
+	
+	LAC	TMR_TR
+	ADHK	1
+	SAH	TMR_TR		;increase one every 125us
+
+	LAC	TMR_TR
+	SBHL	800
+	BS	SGN,C_SIO_END
+	LACL	800
+	SAH	TMR_TR		;将TMR_TR2限制在100ms以内,记录位间隔或字节间隔时间
+	
+	LACK	0
+	SAH	SIO_CNT
+	CRAM	TRS_FG,9
+	CRAM	TRS_FG,7
+	
+C_SIO_END:
+	RET	
+;-------detect SIO task---------------------------------------------
+;-------------------------------------------------------------------
+SIO_DET:	
+
+	LAC	TMR_TR		;应大于双字节间的时间延迟上限8ms
+	SBHK	END_SEND
+	BS	SGN,SIO_DET1 		;传送任务结束了吗(距最后一次位传送超过15*Tc-T)?
+;-------任务结束或者没任务,清除发送/接收任务标志,置执行命令标志------------------------------
+	BIT	TRS_FG,7		;本来清除该标志无需判断该位是否为零,但考虑到"可执行"
+	BZ	TB,SIO_DET1		;命令位(TRS_FG.10)与其同时操作,却不能被多次置位
+
+	CRAM	TRS_FG,7		;TRS_FG(bit7)=0;若是发送状态,此位可由COUNT(7..4)=0或TRAN_BUFx=0确定
+					;只有TMR_TR2>10ms时才表示一次接收任务的正式结束
+	LACK	0
+	SAH	SIO_CNT
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG
+	
+	LACL	CMSG_SER
+	CALL	INT_STOR_MSG
+SIO_DET1:
+	BIT	TRS_FG,7
+	BS	TB,SIO_DET_END		;查是否处于接收状态
+	
+	BIT	TRS_FG,9
+	BS	TB,SIO_DET_END		;查是否处于发送状态
+	
+	LAC	TMR_TR
+	SBHK	END_BYTE
+	BZ	ACZ,SIO_DET2
+	
+	CALL	DAT_IDEL
+SIO_DET2:	
+	
+	BIT	TRS_FG,5		;查DSP接收请求(CPU发送clock=BIOR.6=0?)
+	BS	TB,SIO_DET3
+	
+	BIT	TRS_FG,10		;查DSP发送请求(CPU发送clock=BIOR.6=0?)
+	BZ	TB,SIO_DET5
+	
+	CRAM	TRS_FG,10
+	SRAM	TRS_FG,9
+	
+	CALL	WR_L
+	BS	B1,SIO_DET4
+SIO_DET3:
+	LACL	0XFFFF		;初始化为0XFFFF是为便于测试
+	SAH	RECE_BUF1
+	SAH	RECE_BUF2
+	SAH	RECE_BUF3
+	SAH	RECE_BUF4
+	SAH	RECE_BUF5
+	SAH	RECE_BUF6
+	SAH	RECE_BUF7
+	SAH	RECE_BUF8
+	SAH	RECE_BUF9
+	SAH	RECE_BUF10
+	SAH	RECE_BUF11
+	SAH	RECE_BUF12
+	SAH	RECE_BUF13
+
+	SRAM	TRS_FG,7	;set the flag of receive bit(TRS_FG.7=1)	
+;-------
+SIO_DET4:			;请求成功,进行一些传送初始化操作
+	LACK	0
+	SAH	TMR_TR		;位传送计时开始
+	
+	;LAC	SIO_CNT
+	;ANDL	0XFFF0
+	;SAH	SIO_CNT		;位传送计数开始
+	BS	B1,SIO_DET_END
+SIO_DET5:	;SIO idel mode
+	LAC	TRS_FG
+	ANDL	0XFFF0 ;;;;;;;;;;处于空闲状态(保留TRS_FG.10,9,8,7,6,5,4)无请求
+	SAH	TRS_FG
+SIO_DET_END:
+	
+	RET
+
+;-------开始偿试执行命令--------------------------------------------	
+;-------执行传送部分,根据状态决定是发送,接收或空闲----------------
+;	有脉冲来,则执行相应的收发操作;没有脉冲来
+;-----------------------------------------------------------------
+C_INT1:
+	BIT	TRS_FG,5
+	BZ	TB,C_INT3	;查clock(BIOR.6) fail edge flag
+	
+	CALL	TRANSMIT
+	CALL	RECEIVE
+	
+		
+	CRAM	TRS_FG,5		;clear fail edge flag TRS_FG(bit5)
+	
+	BS	B1,C_INT1_END
+C_INT3:
+	CALL	ERR_CHK
+C_INT1_END:
+	RET
+;----------------------------------------------------------------------------
+;	Funtion : CLOCK
+;		检测CLK脉冲
+;----------------------------------------------------------------------------
+CLOCK:	
+	BIT	TRS_FG,9
+	BS	TB,CLOCK_S
+CLOCK_R:
+	CALL	DAT_VALID	;检测接收是否有效
+	BIT	TRS_FG,11
+	BS	TB,CLOCK_R1
+	
+	SRAM	TRS_FG,4	;在WR=HIGH(无收发)时也记下CLK
+
+	IN	C_RSIO1,BIOR
+	BIT	C_RSIO1,6
+	BS	TB,CLOCK_R3
+	BS	B1,CLOCK_R4
+CLOCK_R1:			
+	IN	C_RSIO1,BIOR	;查clock
+	BIT	C_RSIO1,6
+	BS	TB,CLOCK_R3
+	
+	BIT	TRS_FG,4
+	BS	TB,CLOCK_R4	;查上次状态,LOW--->LOW则直接退出
+
+	SRAM	TRS_FG,5	;if 78806 send clock(fail edge) then TRS_FG.5=1
+	SRAM	TRS_FG,4
+
+	LAC	TRS_FG
+	ADHK	1
+	SAH	TRS_FG
+
+	LAC	TRS_FG
+	ANDK	0X0F
+	SBHK	9
+	BZ	ACZ,CLOCK_R2
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	ADHK	1
+	SAH	TRS_FG
+	
+CLOCK_R2:
+	BS	B1,CLOCK_R4
+CLOCK_R3:
+	CRAM	TRS_FG,4
+	CRAM	TRS_FG,5	;可删除---因为收发一个bit后总会清除之
+CLOCK_R4:
+	RET
+;-------
+.IF	TEXT_CLOCK
+CLOCK_S:
+	LAC	CLK_CN
+	ADHK	1
+	SAH	CLK_CN
+	
+	ANDL	0X07
+	SBHK	1
+	BZ	ACZ,CLOCK_S2
+CLOCK_S1:
+	SRAM	TRS_FG,5
+	
+	LAC	TRS_FG
+	ADHK	1
+	SAH	TRS_FG
+
+	LAC	TRS_FG
+	ANDK	0X0F
+	SBHK	9
+	BZ	ACZ,CLOCK_S2
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	ADHK	1
+	SAH	TRS_FG
+	
+CLOCK_S2:
+		
+	RET
+.ELSE
+CLOCK_S:
+	
+CLOCK_S1:			
+	IN	C_RSIO1,BIOR	;查clock
+	BIT	C_RSIO1,6
+	BZ	TB,CLOCK_S3
+	
+	BIT	TRS_FG,4
+	BZ	TB,CLOCK_S4	;查上次状态,HIGH--->HIGH则直接退出
+
+	SRAM	TRS_FG,5	;if MCU send clock(rose edge) then TRS_FG.5=1
+	CRAM	TRS_FG,4
+
+	LAC	TRS_FG
+	ADHK	1
+	SAH	TRS_FG
+
+	LAC	TRS_FG
+	ANDK	0X0F
+	SBHK	9
+	BZ	ACZ,CLOCK_S2
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	ADHK	1
+	SAH	TRS_FG
+	
+CLOCK_S2:
+	BS	B1,CLOCK_S4
+CLOCK_S3:
+	SRAM	TRS_FG,4
+	;CRAM	TRS_FG,5	;可删除---因为收发一个bit后总会清除之
+CLOCK_S4:
+	RET
+.ENDIF
+;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+SEND_INIT:
+	BIT	TRS_FG,7
+	BS	TB,SEND_INIT_END
+	BIT	TRS_FG,11
+	BS	TB,SEND_INIT_END
+.IF	0
+	LAC	MSG_ID
+	ORL	0XA000
+	SAH	CONF
+	CALL	DAM_BIOS
+	LAC	RESP
+	SFL	8
+	ORL	0X8F
+	SAH	RECE_BUF1
+	SAH	RECE_BUF	;SECOND
+;---	
+	LAC	MSG_ID
+	ORL	0XA100
+	SAH	CONF
+	CALL	DAM_BIOS
+	LAC	RESP
+	ANDL	0XFF
+	SAH	RECE_BUF2	;MINUTE
+	
+	LAC	MSG_ID
+	ORL	0XA200
+	SAH	CONF
+	CALL	DAM_BIOS
+	LAC	RESP
+	SFL	8
+	OR	RECE_BUF2	;HOUR
+	SAH	RECE_BUF2
+;---	
+	LAC	MSG_ID
+	ORL	0XAE00
+	SAH	CONF
+	CALL	DAM_BIOS
+	LAC	RESP
+	ANDL	0XFF
+	SAH	RECE_BUF3	;DAY
+	
+	LAC	MSG_ID
+	ORL	0XAD00
+	SAH	CONF
+	CALL	DAM_BIOS
+	LAC	RESP
+	SFL	8
+	OR	RECE_BUF3	;MONTH
+	SAH	RECE_BUF3
+;---	
+	LAC	MSG_ID
+	ORL	0XAC00
+	SAH	CONF
+	CALL	DAM_BIOS
+	LAC	RESP
+	ANDL	0XFF
+	ORL	0X0400
+	SAH	RECE_BUF4	;YEAR
+	
+	LACL	0X454D
+	SAH	RECE_BUF5
+	LACL	0X4F4D
+	SAH	RECE_BUF6
+.ENDIF
+;---
+	LAC	MSG_ID
+	CALL	GET_USRDAT
+	CALL	GET_TELID
+	BS	ACZ,SEND_INIT_END
+	CALL	TELNUM_READ
+	
+	LAC	TRS_FG
+	ANDL	0XFFF0
+	SAH	TRS_FG
+	
+	LACK	0
+	SAH	SIO_CNT
+	
+	SRAM	TRS_FG,10	;开始发送了
+	
+SEND_INIT_END:
+		
+	RET
+
+;---------------------------------------------------------
+;	Function : SEND_BIT
+;	根据要发送的位的状态,置输出口H/L,并准备下一位
+;---------------------------------------------------------
+SEND_BIT:	
+	BIT	RECE_BUF,7
+	BS	TB,SEND_BIT3
+	
+SEND_BIT2:
+	CALL	DAT_L
+	BS	B1,SEND_BIT_END
+SEND_BIT3:
+	CALL	DAT_H
+SEND_BIT_END:
+	LAC	RECE_BUF
+	SFL	1
+	ANDL	0X0FF
+	SAH	RECE_BUF
+	
+	RET
+
+;----------------------------------------------------------------------------
+;	Function : DAT_H
+;	dat(BIOR.4=1)
+;----------------------------------------------------------------------------
+DAT_H:
+	LIPK	0
+	SIO	12,BIOR
+	SIO	4,BIOR
+	RET
+;----------------------------------------------------------------------------
+;	Function : DAT_L
+;	dat(BIOR.4=0)
+;----------------------------------------------------------------------------
+DAT_L:
+	LIPK	0
+	SIO	12,BIOR
+	CIO	4,BIOR
+	RET
+;----------------------------------------------------------------------------
+;	Function : DAT_IDEL
+;	dat(BIOR.12=0)
+;----------------------------------------------------------------------------
+DAT_IDEL:
+	LIPK	0
+	CIO	12,BIOR
+	
+	RET
+;----------------------------------------------------------------------------
+;	Function : DAT_VALID
+;	(BIOR.5)
+;----------------------------------------------------------------------------
+DAT_VALID:
+	SRAM	TRS_FG,11
+.if	TEXT_WR	
+	LIPK	0
+	CIO	13,BIOR
+	NOP
+	IN	C_RSIO1,BIOR
+	BIT	C_RSIO1,5
+	BZ	TB,DAT_VALID_END
+	
+	CRAM	TRS_FG,11
+.endif
+DAT_VALID_END:	
+	RET
+;----------------------------------------------------------------------------
+;	Function : WR_L
+;	(BIOR.5)
+;----------------------------------------------------------------------------
+WR_L:
+	SRAM	TRS_FG,11
+.if	TEXT_WR	
+	LIPK	0
+	SIO	13,BIOR
+	CIO	5,BIOR
+.endif
+WR_L_END:	
+	RET
+
+
+.END
+

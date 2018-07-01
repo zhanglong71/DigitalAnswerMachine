@@ -1,0 +1,43 @@
+CID -> phonebook的编辑过程完毕。
+
+2008-5-23 改正编辑TEL-name时删除操作的一个错误
+
+2008-5-26 可分别浏览 Normal/VIP/Filter TEL;改正因为l_tel.asm中的文件变化而产生的NEW-CID-LED重新上电不闪烁的故障;
+
+2008-5-29 编辑(非添加)时保存当前位(Time/Menu)后不能在当前位之后置0XFF;改正MSG_WEEKNEW错;选择语言时无论确定与否都要发一个确定的语言;
+
+2008-8-2 菜单中的OGM可录之后放
+
+2008-8-4 菜单中的OGM改回2008-8-2以前的菜单OGM不录音;OGM录音计时修正
+
+2008-8-5 上电初始化后默认新录音BEEP提示关
+
+2008-8-11 将一个调试点(MSG_CID收到新CID时查VIP/FILTER)注释掉;
+
+2008-8-12 时间保存在Flash，只用WEEK。
+
+2008-8-14 菜单调节中的故障;计时发时间;Default-OGM5 used,OGM5应答后8s挂机。
+
+2008-8-28 加入full状态发送;
+
+2008-9-3 可报CID,CTONE
+
+2008-9-12 give up CID announce function while received CID;
+
+2008-9-16 加入播放时燃语音报号
+
+2008-9-28 固定一种语言(get_language只返回0);OGM先录成功再删除;
+
+2008-10-6 改变写入flash的初始ps4(由150上的lc1得到,以前是0xA);加入Mbox-4的状态判断;Mbox调节发vpmsg信息及显示;New-ICM alter/1min
+
+2008-10-7 改变BEEP的停止方式;DAM_STOP的停止方式;CTEL_MNUM改为15;格式化后增加对MBOX-4的处理;
+
+2008-10-8 上电设DTMF灵敏度(0x5800);Mbox-4 have new messages,then TS 2-ring to answer;DAA_ANS_SPK/DAA_LIN_SPK中设AGC
+
+2008-11-21 CID中的时间标记有效,若CID不带时间就用DSP自已的时间.
+
+2009-2-24 CODEC开关过程也对ANAPWR进行操作.
+
+2009-3-11 修改上电清零,TEL_GC_CHK(0xE404条件)
+
+2009-5-5 在v8上替换v9的f_ogm.asm/f_play.asm/D20_1160.asm/drive.asm/EXTERN.INC五个文件(即采纳v9上的放音音量调节BB警报)	!!!!!!!!!!v9作废跳过v9

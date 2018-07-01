@@ -1,0 +1,37 @@
+2008-8-5 2way-record
+
+2008-8-28 加入full状态发送
+
+2008-9-3 可报数CID,CTONE
+
+2008-9-12 give up CID announce function;
+
+2008-9-28 固定一种语言(get_language只返回0)
+
+2008-9-28 改错OGM3只答不录(有OGM录音时);OGM先录成功再删除;remote对CPC分开处理
+
+2008-10-6 Password改为4Byte(最后一位固定为0xF);Mbox调节发vpmsg信息及显示;
+
+2008-10-7 上电不发区域码;改变BEEP的停止方式;DAM_STOP的停止方式;CTEL_MNUM改为15;DAA_ANS_SPK/DAA_LIN_SPK中设AGC
+
+2008-11-6 进入应答后BCVOX_INIT要在正式检BTONE/CTONE/VOX之前,防止进入应答后马上检到而退出;最大音量SPK减小2dB;音量L_OUT减小3dB;
+
+2008-11-7 设定0x7800,修改0x7700,改S/N ratio;
+
+2008-11-10 initial VOL=6
+
+2009-1-5 CID中的时间标记有效,若CID不带时间就用DSP自已的时间;改OGM3－VOP
+
+2009-2-24 CODEC开关过程也对ANAPWR进行操作.发现以前的一故障的原因(idle+lbeep后再放VP,放的只是LLLBEEP,此系idle下定时更新FLASH中的WEEK导致CONF中的数据错乱引起)
+
+2009-2-27 换BIOS-D20mcu_090119V1.obj
+
+2009-3-3 将TEL_GC_CHK中的0xE404得到的值的检测点改为31(原为32)
+
+2009-3-4 上电初始化部分加入两条指令(MAR	+0,1)/(LARK	0,1),改SAH +,1指令
+
+2009-3-5 初始化去掉call GC_CHK,TEL_GC_CHK(0xE404部分改成31)
+
+2009-3-20 将menu1/menu2/menu3/menu4/menu5/menu6/menu7/book1/CID中的FFW/REW功能改成-/+;
+
+2009-3-24 Play message/OGM时音量调到最高处发BBEEP;上电时同时按住play和OGM播放全部VOP
